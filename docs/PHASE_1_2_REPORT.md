@@ -50,3 +50,21 @@ Hosted migration, Auth login/session/recovery, actual admin browser publication,
 ## Owner rule update
 
 The owner has now confirmed TDM (completed 1v1, win OR ≥85%), ZM HMX (≥350 with rounds considered), Escape (≥700 OR boosting), TDM equipment restrictions, live Discord sharing, and `Dc.*****` / MAIN FB. These populate the disconnected public preview and initial admin editor. The existing empty fallback remains separate so unpublishing or a database outage cannot resurrect old rules. Maps and remaining policies are still unspecified. No database migration or hosted publication was performed for this copy update.
+
+## Hosted development setup — October 7, 2026
+
+The owner created `deicidee-dev` (`fizahrcvegfxymqzbzkp`) in the Deicidee Free organization, Singapore. The local ignored `.env.local` now contains its project URL and publishable key. The CLI is linked and migration `20261007000100` is recorded on both local and remote histories. All six hosted tables have RLS enabled; anonymous Data API reads of every private table are denied. The public settings RPC returns null until an admin publishes. Hosted public sign-up is disabled; anonymous sign-ins remain disabled. All 12 isolated migration tests passed. The local development server loads `.env.local`. First-officer provisioning, browser sign-in/publication, and Vercel deployment remain pending.
+
+### First officer provisioning
+
+The owner-created, confirmed Auth account has an active `admin` officer profile. A hosted authenticated-role query verifies `current_officer_role()` and settings visibility. No password was collected in chat or stored in source. The owner still needs to complete browser sign-in and publish the confirmed draft before public rules appear on the connected site.
+
+### Hosted settings transaction validation
+
+Draft isolation, publication of the owner-confirmed rules, stale revision rejection, and withdrawal with draft preservation passed against the hosted database under the authenticated admin role context. Test changes were rolled back. This verifies PostgreSQL RPC behavior; browser login, cookies, and server-action publication still require a UI check by the owner.
+
+## Review and repairs — October 7, 2026
+
+Reviewed the public routes, shared components, officer authentication and session handling, configuration reads/writes, migration constraints/RLS, tests, environment handling, and CI. Fixed withdrawal being blocked by an invalid unsaved draft (including browser URL validation), missing or out-of-range revisions being coerced into usable values, failed login clearing the email field, and an overly constrained mobile logo layout. Public Supabase configuration now rejects secret/service-role keys and malformed or insecure remote URLs while retaining local HTTP and legacy anon-key support. No database migration or live-content change was needed.
+
+Validation: `npm run check` passed lint, TypeScript, all 21 tests, and production build. Six new regression tests cover withdrawal with invalid/missing draft content, invalid publication payloads/revisions, and public Supabase configuration. `git diff --check` passed. The hosted migration history still matches the local version. `npm audit --omit=dev` reports zero vulnerabilities. The full audit retains five high entries in the development lint dependency chain; npm reports braces 3.0.3 as the latest published version, which remains affected. No forced downgrade was applied. Browser interaction and visual confirmation were not executed during this review because prior browser access to the local preview was blocked.

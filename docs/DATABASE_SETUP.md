@@ -4,7 +4,7 @@ This is a new Supabase PostgreSQL schema, not a migration of Laragon MySQL data.
 
 ## Current verification boundary
 
-The versioned migration is exercised by `npm run test:db` in an isolated PostgreSQL engine with synthetic users and records. No Supabase project exists yet, so remote migration, Supabase Auth, and browser login/publication have not been verified against a hosted project. Docker/psql were not available in the inspected environment; no additional database service was installed.
+On October 7, 2026, the owner created `deicidee-dev` in the Deicidee Free organization, Singapore (`fizahrcvegfxymqzbzkp`). The CLI is linked locally and migration `20261007000100` is applied remotely. All six tables have RLS enabled. Hosted Data API checks confirmed that anonymous reads of all six private tables are denied and the public configuration is initially unpublished. All 12 isolated database tests passed. Hosted public sign-up is disabled, and anonymous sign-ins remain disabled. The first confirmed Auth user is provisioned as an active admin. A hosted authenticated-role query verifies admin recognition and settings visibility. Browser login/publication remain pending. Docker/psql were not installed.
 
 ## Create a development project and apply migrations
 
@@ -26,7 +26,7 @@ The versioned migration is exercised by `npm run test:db` in an isolated Postgre
    npx supabase migration list
    ```
 
-   Expected migration: `20261007000100_recruitment_foundation.sql`. It is transactional and creates only this app's tables, functions, policies, enums, and an empty configuration singleton. It seeds no users or applicant records. Do not rerun migration SQL manually after the CLI has recorded it, and do not run `db reset --linked`.
+   Expected migrations: `20261007000100_recruitment_foundation.sql` and `20261007000200_application_submission.sql`. It is transactional and creates only this app's tables, functions, policies, enums, and an empty configuration singleton. It seeds no users or applicant records. Do not rerun migration SQL manually after the CLI has recorded it, and do not run `db reset --linked`.
 4. Disable public user sign-up in the hosted project's Auth settings. The committed `supabase/config.toml` disables sign-up for the optional local stack only; it does not change hosted settings.
 5. Add the project URL/publishable key to `.env.local` as described in README and restart `npm run dev`.
 
@@ -62,15 +62,15 @@ For a lost password, the Supabase project administrator must verify the officer 
 
 ## What the migration enforces
 
-- Six tables with RLS and explicit grants: profiles, configuration, configuration history, applications, attempts, and status history.
+- Eight tables with RLS and explicit grants: intake history and rate-limit buckets, plus profiles, configuration, configuration history, applications, attempts, and status history.
 - Only published configuration is anonymous-readable, through a narrow function. Drafts and officer identities are not returned. Unapproved mode rules/maps are stripped from the public document.
 - Only an active admin may save/publish/unpublish. Role checks and optimistic revision updates are inside one database transaction, along with the audit record.
 - Neither staff nor admins can directly alter roles or write recruitment records through the Data API. Future recruitment writes require guarded server workflows/RPCs.
 - A single valid mode and unique submission key per application. Attempts retain that mode, have unique attempt numbers, and keep immutable rule snapshots. Completed attempts and audit history cannot be overwritten.
 - Passed and Joined are distinct. Non-passed applications cannot be marked Joined.
-- Intake is locked closed by a check constraint. A future reviewed migration must unlock it when submission and officer workflows are ready.
+- The application migration replaces the closed-only constraint with admin-only, revision-checked intake controls. Required published policies/contact/Discord and at least one approved ready mode are validated in PostgreSQL. Publication and withdrawal automatically pause intake. Development intake remains closed.
 
-Free-text rule descriptions are informational. Numeric evaluation calculators, map-choice validation at submission, allowed status transitions, transactional decision operations, durable submission rate limiting, and retention execution still belong to later scrum phases. The present schema must not be used to accept live applicants before those workflows are implemented.
+Free-text rule descriptions are informational. Numeric evaluation calculators, allowed status transitions, transactional officer decisions and retention execution still belong to later scrum phases. The application migration now enforces map choices and durable hashed rate limits. The present schema must not be used to accept live applicants before those workflows are implemented.
 
 ## Optional full local Supabase
 
@@ -80,7 +80,7 @@ Laragon MySQL cannot host this schema. If Docker is available, `npm run db:start
 
 Use synthetic records/accounts only in the development project:
 
-- Migration list shows the expected version; all six tables have RLS enabled.
+- Migration list shows the expected version; all eight tables have RLS enabled.
 - Anonymous callers cannot read private tables or call the save RPC.
 - An Auth user with no officer profile cannot open the dashboard.
 - Admin can login, save a draft, publish, reload, unpublish, and logout; draft edits never replace live content until publication.
@@ -91,3 +91,21 @@ Use synthetic records/accounts only in the development project:
 - Recovery and account handover are demonstrated through the chosen provider setup.
 
 Deployment status is separate from local test success. Do not mark this checklist passed until executed against the actual project.
+
+## Server-only application submission
+
+Set `SUPABASE_SECRET_KEY` to the existing secret key under Supabase Settings → API Keys → Secret keys. Keep it out of chat, Git and all `NEXT_PUBLIC_` variables. Set `APPLICATION_RATE_LIMIT_SECRET` to a random secret of at least 32 characters; keep this stable across production instances to share buckets. Restart development after environment edits.
+
+Only the server key can execute `submit_application`; anonymous/authenticated direct calls are denied. Do not broaden its grants. Production request identity uses Vercel’s trusted forwarded IP header, HMAC-hashed before storage. Development uses a shared local bucket. Other production hosts are rejected until a trusted identity adapter is implemented. Reference: [Vercel request headers](https://vercel.com/docs/headers/request-headers).
+
+The SQL function saves payload, published rules/consent version and initial status history in one transaction. Repeating the same key/payload returns the same receipt without another rate-limit count; changing details under the same key fails. Five new submissions per connection per ten minutes are allowed. Stored hashes are lazily cleaned on new submissions after a day; general applicant retention/deletion still requires its own approved workflow.
+
+## Officer dashboard migration and accounts
+
+`20261008000100_officer_dashboard.sql` adds private notes/account history, guarded review/account RPCs and historical officer identity links (ten RLS tables total). The login UUID is stored in nullable `auth_user_id`; deleting Auth sets it null and disables the retained officer profile. Current-role checks exclude suspended/deleted/pending accounts, including still-valid older JWTs.
+
+Admins now create staff at `/admin?tab=requirements&accounts=open#officer-accounts`; Auth creation uses the server secret, and `provision_staff` independently rechecks the caller and always assigns staff. Public signup stays disabled. Profile creation failure attempts to remove the unassigned Auth login; if network/cleanup fails, inspect development Auth users before retrying. No automatic invitation email or forced password-change flow is implemented. Share initial credentials privately.
+
+Account deletion revokes access transactionally before calling Supabase Auth. A failed external deletion remains disabled and pending, with safe retry. Historical profile/notes/audit attribution is intentionally retained, so deletion removes the login rather than erasing prior officer actions. [Supabase deleteUser reference](https://supabase.com/docs/reference/javascript/auth-admin-deleteuser).
+
+The optional `node scripts/verify-dashboard-hosted.mjs` check is restricted to the linked `deicidee-dev` project and a running local server. It creates/deletes one disposable Auth staff login and intentionally leaves a disabled historical test profile/audit events. It never prints credentials or affects existing accounts. `docs/dashboard-hosted-check.sql` validates FK/history behavior in a rollback-only transaction. Neither hosted check runs in secret-free CI.

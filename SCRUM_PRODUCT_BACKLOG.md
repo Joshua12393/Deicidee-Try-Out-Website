@@ -145,28 +145,28 @@ A story can enter a sprint when its purpose, acceptance criteria, dependencies, 
 ## Phase 4 — Deliver reliable application submission
 
 **Goal:** one valid player submission becomes one private application.  
-**Status:** planned.  
+**Status:** implemented for development review; public intake remains closed.
 **Dependencies:** Phases 2–3 and approved fields/privacy content.  
 **Maps to website plan:** broad Phase 3.
 
 ### DC-010 — Build the application form
 
 **Story:** As a player, I want to submit my details and choose one tryout without creating a website account.  
-**Priority / estimate / status:** P0 · 5 points · Backlog
+**Priority / estimate / status:** P0 · 5 points · Review
 
 **Acceptance:** Form contains approved fields, a required single-mode radio group, relevant map choices, and clear sharing/privacy acknowledgement. Previous clan accepts None. Errors identify fields, retain valid input, and work with keyboard/screen-reader navigation. No game credentials are requested.
 
 ### DC-011 — Persist submissions safely
 
 **Story:** As an applicant, I want my application saved once even if I retry after a slow response.  
-**Priority / estimate / status:** P0 · 5 points · Backlog
+**Priority / estimate / status:** P0 · 5 points · Review
 
 **Acceptance:** Server allowlists fields and validates mode/map combinations; supplied status/evaluator/outcome fields are rejected or ignored safely. Enforce shared durable rate limits and database-backed idempotency. Persist acknowledgement version/time and initial Pending Review status. Double-clicks/retries do not duplicate a submission; a database outage never reports success.
 
 ### DC-012 — Confirm submission and respect recruitment closure
 
 **Story:** As a player, I want to know whether I applied successfully and what to do next.  
-**Priority / estimate / status:** P0 · 3 points · Backlog
+**Priority / estimate / status:** P0 · 3 points · Review
 
 **Acceptance:** Confirmation appears only after persistence, provides a reference and Discord next steps, and does not expose private records through a guessable URL. Closed recruitment blocks submissions in both UI and server. Preserve entered data on recoverable errors. No public applicant list or mandatory applicant account is introduced.
 
@@ -356,3 +356,15 @@ Deployment: not deployed, no Supabase project connected, applications closed. Se
 ### Rule confirmation follow-up
 
 DC-001 now has owner confirmation for the three mode rules (TDM 85%, ZM 350 plus rounds, Escape 700 OR boosting), the TDM weapon/character/armor/accessory restrictions, live Discord sharing, and `Dc.*****` / MAIN FB after passing. Initial public/admin content is updated. Remaining content decisions include actual map names, server/ranks, official links, retry/retention policies, and detailed qualitative evaluation criteria. This does not open application intake.
+
+### Hosted setup follow-up — October 7, 2026
+
+DC-007 migration is applied to `deicidee-dev`, with matching CLI migration history and RLS on all six tables. DC-009 hosted anonymous private-table denial is verified. Public sign-up is disabled. DC-008 first-officer provisioning, real login/session/recovery acceptance, and admin/staff publication acceptance remain pending. No intake or deployment is opened.
+
+## Application increment — 7 October 2026
+
+DC-010–012 are implemented for review with the user-approved required IGN/Discord/reason/single mode/consent and optional first/last name, rank, previous clan and Facebook. ZM HMX/Escape require actual published map names; no examples were published as real maps. Intake controls from DC-015 were pulled forward. Officer pipeline, scheduling, decisions, joining and release remain pending. See [Phase 4 report](./docs/PHASE_4_REPORT.md) for current verification and launch gates.
+
+## Officer review and account management — 8 October 2026
+
+DC-013 and DC-014 are implemented for development review: a real filtered/paginated pipeline, private details, notes, and history. DC-015 now includes audited close/withdraw and admin reopening, plus earlier intake controls. Protected account creation/suspension/deletion was added at the user’s request; staff cannot provision accounts or elevate roles. Scheduling/evaluation/joining and release remain pending. See [dashboard verification](./docs/OFFICER_DASHBOARD_REPORT.md).

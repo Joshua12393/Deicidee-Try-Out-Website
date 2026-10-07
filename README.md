@@ -4,16 +4,16 @@ CrossFire clan recruitment website built with Next.js, TypeScript, Tailwind CSS,
 
 ## Current implementation
 
-- Public Home, Tryouts, refresh-safe Requirements section, FAQ, Community, Privacy, and closed Application page.
+- Public Home, Tryouts, refresh-safe Requirements section, FAQ, Community, Privacy, and an application form with a closed-intake preview.
 - Responsive black/red styling based on the supplied Stitch reference; the owner-supplied official Deicidee logo is used in the homepage hero and browser icon. Header and footer use the text wordmark without a trailing period.
 - Officer sign-in/out and Supabase session refresh. Active **admin** and **staff** roles are checked on the server and in PostgreSQL.
-- Admin settings for mode descriptions, evaluation-rule text, approved maps, server/ranks, joining/retry/privacy policies, and official Discord/Facebook links. Admins can save drafts, publish, and unpublish. Staff can read settings.
+- Admin settings for mode descriptions, evaluation-rule text, approved maps, server/ranks, joining/retry/privacy policies, and official Discord/Facebook links. Admins can save drafts, publish, and unpublish. Staff can read settings and review applications in a separate Applications tab. Admins can create staff accounts, suspend/restore access, and delete login accounts while retaining officer history.
 - Versioned SQL migration for officer profiles, configuration, configuration audit history, applications, attempts, and status history. RLS, unique submission keys, single-mode constraints, and immutable attempt snapshots are included.
 - Secret-free CI and isolated PostgreSQL migration/authorization tests.
 
-**Applications remain closed.** Application submission, recruitment pipeline, scheduling/evaluation actions, and joining workflows belong to later scrum phases. The database rejects opening intake at this stage. No applicant form or success screen pretends to save data.
+**Applications remain closed for development review.** The Phase 4 submission form and server save flow are implemented with one-mode/map validation, durable rate limits, idempotency, consent snapshots and private receipts. Admins control intake; publication/withdrawal automatically pauses it. Keep public intake closed until officer processing and release checks are ready. The recruitment pipeline now supports real search, filters, private notes/history and guarded triage. Scheduling/evaluation and joining workflows remain pending. See [Phase 4 evidence](./docs/PHASE_4_REPORT.md).
 
-**No Supabase project is connected and nothing has been deployed.** Without credentials, public pages render the owner-confirmed starting rules and `/admin` shows an explicitly read-only setup preview. With Supabase connected, public pages use only the admin-published version; unpublished settings and outages show safe pending content. There are no default accounts or authentication bypasses. A hosted login/publication smoke test remains necessary after setup.
+**The local site is connected to the `deicidee-dev` Supabase project; Vercel deployment remains pending.** Without credentials, public pages render the owner-confirmed starting rules and `/admin` shows an explicitly read-only setup preview. With Supabase connected, public pages use only the admin-published version; unpublished settings and outages show safe pending content. There are no default accounts or authentication bypasses. A hosted login/publication smoke test remains necessary after setup.
 
 The product/design source is [WEBSITE_PLAN.md](./WEBSITE_PLAN.md); delivery tracking is [SCRUM_PRODUCT_BACKLOG.md](./SCRUM_PRODUCT_BACKLOG.md).
 
@@ -48,7 +48,7 @@ NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your-publishable-key
 ```
 
-These public connection values are used with user-scoped authorization and RLS. The application does **not** need a service-role key. Never put database passwords, Supabase secrets, or service-role keys in `NEXT_PUBLIC_` variables or Git.
+These public connection values are used with user-scoped authorization and RLS. Officer login uses the public key and user-scoped authorization. Application submission additionally requires the server-only `SUPABASE_SECRET_KEY` and a random `APPLICATION_RATE_LIMIT_SECRET` of at least 32 characters. See `.env.example`. Never put database passwords, Supabase secrets, or service-role keys in `NEXT_PUBLIC_` variables or Git.
 
 ## Admin and staff workflow
 
@@ -58,9 +58,9 @@ These public connection values are used with user-scoped authorization and RLS. 
 4. Mark a mode approved only after confirming its rules and map list. **Save & publish** updates public content without a new deployment.
 5. **Unpublish settings** withdraws the public version while retaining the last saved draft.
 
-Unapproved mode details are removed from the public database response, not merely hidden in the UI. Public pages render plain text, not administrator-supplied HTML. Discord/Facebook links require HTTPS on allowlisted provider domains. Blank policy fields are labelled awaiting confirmation. Publishing rules never opens intake.
+Unapproved mode details are removed from the public database response, not merely hidden in the UI. Public pages render plain text, not administrator-supplied HTML. Discord/Facebook links require HTTPS on allowlisted provider domains. Blank policy fields are labelled awaiting confirmation. Publishing rules closes intake. An admin must explicitly reopen it after reviewing the new published version. Missing privacy/retention/contact, Discord requirements/invite, or all ready modes blocks opening.
 
-Every configuration save checks the current admin role, updates a revision, and appends an audit event in one transaction. A stale editor is rejected; copy unsaved edits before reloading. Role assignments use controlled database provisioning, not browser-editable metadata.
+Every configuration save checks the current admin role, updates a revision, and appends an audit event in one transaction. A stale editor is rejected; copy unsaved edits before reloading. New staff roles are assigned by an admin-only database RPC after server-side Auth creation, never browser-editable metadata. Open **Manage accounts** from the dashboard to create future staff, suspend/restore access or delete an account. Account deletion requires a reason, exact display-name confirmation and acknowledgement; self-removal and last-admin removal are blocked. Passwords are never echoed into action state.
 
 ## Commands and checks
 
@@ -88,7 +88,7 @@ The app uses the standard Next.js preset; no PHP server, custom output directory
 
 1. Create and configure a Supabase development project first. Apply the reviewed migration separately from Vercel builds.
 2. Import the existing [GitHub repository](https://github.com/Joshua12393/Deicidee-Try-Out-Website) into Vercel. Select Next.js, Node 24, repository root, `npm run build`, and the framework's default output.
-3. Supply the two Supabase environment variables for the intended environment. Keep preview deployments unconfigured or connected to a separate development project; never give previews production applicant access.
+3. Supply the public URL/key plus server-only `SUPABASE_SECRET_KEY` and `APPLICATION_RATE_LIMIT_SECRET` for the intended environment. Keep preview deployments unconfigured or connected to a separate development project; never give previews production applicant access.
 4. Disable public Supabase sign-up. Set the Auth site URL to the final HTTPS deployment and allow only intended redirect URLs. The password sign-in uses no arbitrary return URL. Recovery is administrator-assisted until a tested recovery UI/provider is added.
 5. Run the hosted acceptance checks in the database guide: admin login/save/publish/logout, staff denial, unauthenticated denial, expiration, revocation, and public refresh.
 6. Keep `noindex` and intake closed during development. Publishing this informational site is distinct from launching recruitment. Complete later scrum phases before accepting players' information.

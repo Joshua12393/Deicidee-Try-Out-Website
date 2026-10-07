@@ -213,3 +213,19 @@ The owner has now confirmed the following. These supersede earlier notes that tr
 These are the initial admin content and the unconnected local site's public rules. Once Supabase is connected, admins still control publication. Database outages or deliberately unpublished settings never restore an older approved version automatically.
 
 Map names, server/rank scheme, official URLs, retry/retention policy, and detailed qualitative evaluation criteria remain to be supplied. Applications remain closed until the submission and officer workflows are implemented.
+
+## Hosted development connection — October 7, 2026
+
+`deicidee-dev` in Singapore (`fizahrcvegfxymqzbzkp`) is now connected locally. The foundation migration is applied; all six private tables have RLS and deny anonymous Data API reads. Hosted public sign-up is disabled. Initial admin provisioning and login/publication acceptance are the next setup steps. Intake remains closed and Vercel deployment is pending.
+
+## Application submission increment — 7 October 2026
+
+This supersedes the earlier closed-only schema/form notes: the player form and guarded save RPC are now implemented for development review. Required fields are IGN, Discord contact, reason, exactly one mode and privacy/live-sharing consent. Optional fields are first/last name, rank, previous clan (None allowed), and Facebook link. ZM HMX/Escape require a map from the published admin list; TDM requires no map. No map names have been invented.
+
+Admins may explicitly change intake after publishing complete fields/privacy/retention/contact/Discord information and a ready mode. Settings publication or withdrawal pauses intake automatically. Keep public intake closed until the officer pipeline and launch checks are ready. The server save uses the private Supabase key, durable hashed rate buckets, atomic acknowledgement/rule snapshots, initial Pending Review history, and a unique submission key/receipt. General retention automation is not implemented. See [Phase 4 report](./docs/PHASE_4_REPORT.md).
+
+## Officer dashboard and staff accounts — 8 October 2026
+
+The dashboard now has two refresh-safe sections: Requirements and Applications. Admins publish requirements/control intake and manage officer accounts. Staff read requirements and review applications. Admin-only staff creation uses a display name, email and an initial password, always assigns staff, and keeps public signup disabled. No passwords are logged or returned in action state. Admins can suspend/restore access or permanently delete another officer’s login after a reason, name confirmation and deletion acknowledgement. Self-removal and removal of the last active admin are blocked. Deleted login accounts retain a disabled historical officer profile to preserve notes/decisions; pending deletion cannot be reactivated.
+
+Applications now have real counts, literal IGN/reference search, status/mode filters, stable pagination, private detail/notes/history, close/withdraw actions and admin-only reopening. Scheduling and scoring decisions are still separate later workflows. Every transition has an officer/reason and optimistic version check; notes have idempotent keys. Intake remains closed pending policies and the remaining launch checks. See [dashboard report](./docs/OFFICER_DASHBOARD_REPORT.md).
