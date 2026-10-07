@@ -1,33 +1,22 @@
-import { clan, tryoutModes } from "@/lib/clan";
-
-export default function Home() {
-  return (
-    <div className="mx-auto flex min-h-screen max-w-6xl flex-col px-6 sm:px-10">
-      <a href="#main" className="sr-only focus:not-sr-only focus:py-4">Skip to content</a>
-      <header className="flex flex-wrap items-center justify-between gap-4 border-b border-white/10 py-7">
-        <span className="text-xl font-black tracking-widest">{clan.name}<span className="text-red-500">.</span></span>
-        <span className="text-xs uppercase tracking-[0.2em] text-neutral-400">{clan.game} clan</span>
-      </header>
-      <main id="main" className="flex flex-1 flex-col justify-center py-20 sm:py-28">
-        <p className="mb-6 text-sm font-bold uppercase tracking-[0.2em] text-red-400">Skill. Teamwork. Drive.</p>
-        <h1 className="max-w-4xl text-5xl leading-[1.05] font-black tracking-tight uppercase sm:text-7xl">
-          Prove your skill.<br /><span className="text-red-500">Earn your place.</span>
-        </h1>
-        <p className="mt-8 max-w-xl text-lg leading-8 text-neutral-300">
-          The Deicidee recruitment website is taking shape. Applications are not available on this website yet.
-        </p>
-        <section aria-labelledby="modes-title" className="mt-14 border-t border-white/10 pt-8">
-          <h2 id="modes-title" className="text-sm font-bold uppercase tracking-widest">Three tryouts. Choose one.</h2>
-          <ul className="mt-5 flex flex-wrap gap-3">
-            {tryoutModes.map((mode) => (
-              <li key={mode.id} className="border border-white/15 px-5 py-3 text-sm text-neutral-200">{mode.name}</li>
-            ))}
-          </ul>
-        </section>
-      </main>
-      <footer className="border-t border-white/10 py-6 text-xs leading-6 text-neutral-500">
-        {clan.name} · A community clan website for CrossFire players.
-      </footer>
-    </div>
-  );
+import Link from "next/link";
+import Image from "next/image";
+import { tryoutModes } from "@/lib/clan";
+import { getPublicConfig } from "@/lib/public-config";
+import { ClosedNotice } from "@/components/public-content";
+export default async function Home() {
+  const { content } = await getPublicConfig();
+  return <>
+    <section className="hero">
+      <div><p className="eyebrow">CrossFire / Deicidee clan</p><h1>Prove your skill.<br /><span>Earn your place.</span></h1><p className="lede">Skill. Teamwork. Drive. Bring your best to the arena and find your place with Deicidee</p><div className="actions"><Link className="button" href="/tryouts">Explore tryouts ↗</Link><Link className="button secondary" href="/apply">Application status</Link></div><p className="hero-caption">THREE MODES. ONE CHOICE. YOUR NEXT CHALLENGE.</p></div>
+      <div className="hero-art"><div className="art-corner" aria-hidden="true">DEICIDEE / CROSSFIRE</div><Image className="hero-logo" src="/deicidee-logo.png" alt="Official Deicidee clan logo" width={500} height={500} sizes="(max-width: 700px) 260px, (max-width: 1050px) 40vw, 450px" priority /><span className="art-caption" aria-hidden="true">SKILL · TEAMWORK · DRIVE</span></div>
+    </section>
+    <ClosedNotice />
+    <section className="section"><div className="section-heading"><div><p className="eyebrow">The mindset</p><h2>More than a name.</h2></div><span className="muted">This is Deicidee</span></div><div className="grid-three">{[
+      ["01", "Lethal skill", "Practice with purpose. Build precision, awareness, and confidence in every match."],
+      ["02", "Iron teamwork", "Communicate clearly, trust your teammates, and make your individual skill count for the team."],
+      ["03", "Relentless drive", "Learn from each round. Keep improving and bring that same effort to your next challenge."],
+    ].map(([number, title, description]) => <article className="panel value-panel" key={number}><span className="index">{number}</span><h3>{title}</h3><p>{description}</p></article>)}</div></section>
+    <section className="section"><div className="section-heading"><div><p className="eyebrow">Choose your arena</p><h2>One mode. Your focus.</h2></div><Link className="text-link" href="/tryouts">View tryouts ↗</Link></div><div className="grid-three">{tryoutModes.map((mode, i) => <Link key={mode.id} className="panel mode-card" href={`/tryouts#${mode.id}`}><span className="eyebrow">0{i + 1} / {mode.shortName}</span><h3>{mode.name}</h3><p>{content.modes[mode.id].approved ? content.modes[mode.id].description : "Rules and approved maps will be published here before recruitment opens."}</p><span className="text-link">Explore mode ↗</span></Link>)}</div></section>
+    <section className="section journey"><p className="eyebrow">Your path to the clan</p><h2>Know what comes next.</h2><ol>{[["Read the requirements", "Compare the modes and choose exactly one."], ["Apply when intake opens", "Send your details through the application form."], ["Attend your tryout", "Coordinate the schedule with an officer through Discord."], ["Receive a decision", "An officer records the outcome and confirms your joining steps."]].map(([title, description]) => <li key={title}><h3>{title}</h3><p>{description}</p></li>)}</ol></section>
+  </>;
 }
