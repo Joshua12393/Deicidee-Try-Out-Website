@@ -4,9 +4,9 @@ import { PageIntro } from "@/components/public-content";
 import { getPublicConfig } from "@/lib/public-config";
 export const metadata: Metadata = { title: "Recruitment FAQ | Deicidee" };
 export default async function FAQ() {
-  const { content } = await getPublicConfig();
+  const { content, open } = await getPublicConfig();
   const questions = [
-    ["Can I apply now?", "Applications are not open yet. You can explore the tryout guide, but this website does not currently accept applications."],
+    ["Can I apply now?", open ? "Applications are open. Review the requirements and apply for exactly one ready mode." : "Applications are closed. You can review the form and guide, but submission is disabled."],
     ["Do I need a website account?", "No applicant account is planned. Officer accounts are separate and are provisioned by the clan administrator."],
     ["Can I choose more than one mode?", "Choose exactly one: TDM, ZM HMX, or Escape. A retry is another attempt in that selected mode; a mode change must be arranged with an officer."],
     ["How is my tryout scheduled?", "Once applications open, an officer will coordinate arrangements manually through your Discord contact. Scheduled times will be shown in Asia/Manila. There is no promised response time."],

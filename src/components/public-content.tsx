@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { RecruitmentConfig } from "@/lib/recruitment-config";
+import { getPublicConfig } from "@/lib/public-config";
 export function PageIntro({ eyebrow, title, children }: { eyebrow: string; title: string; children: React.ReactNode }) {
   return <div className="page-intro"><p className="eyebrow">{eyebrow}</p><h1>{title}</h1><div className="lede">{children}</div></div>;
 }
@@ -15,6 +16,8 @@ export function RequirementsPanels({ content }: { content: RecruitmentConfig }) 
     <section className="panel"><p className="eyebrow">02 / After passing</p><h2>Earn your place.</h2><p className="preserve-lines">{content.ccnRequirement || "The exact clan-name (CCN) format is awaiting confirmation."}</p><p className="preserve-lines">{content.mainFacebookRequirement || "Main Facebook requirements are awaiting confirmation."}</p><p className="muted">Passed and Joined are separate steps. An officer confirms completion of the joining requirements.</p></section>
   </div>;
 }
-export function ClosedNotice() {
+export async function ClosedNotice() {
+  const config = await getPublicConfig();
+  if (config.open) return <aside className="notice"><span className="status-dot" aria-hidden="true" /><div><strong>Applications are open.</strong><p>Review the published rules, then <Link className="text-link" href="/apply">apply for one mode ↗</Link>.</p></div></aside>;
   return <aside className="notice"><span className="status-dot" aria-hidden="true" /><div><strong>Applications are not open yet.</strong><p>Explore the tryouts while recruitment is being prepared. No application is submitted or saved from these pages.</p></div></aside>;
 }

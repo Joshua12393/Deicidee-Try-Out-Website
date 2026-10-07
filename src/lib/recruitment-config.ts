@@ -29,6 +29,25 @@ export const recruitmentConfigSchema = z.object({
   modes: z.object({ tdm: modeSchema, zm_hmx: modeSchema, escape: modeSchema }).strict(),
 }).strict();
 export type RecruitmentConfig = z.infer<typeof recruitmentConfigSchema>;
+
+// Withdrawal must work even when the unsaved draft contains invalid input.
+export function parseSettingsSubmission(form: FormData) {
+  const rawRevision = form.get("revision");
+  const revision = typeof rawRevision === "string" && /^\d+$/.test(rawRevision) ? Number(rawRevision) : NaN;
+  const fallback = Number.isSafeInteger(revision) && revision >= 0 && revision <= 2147483647 ? revision : 0;
+  const fail = (message: string) => ({ success: false as const, revision: fallback, message });
+  if (!Number.isSafeInteger(revision) || revision < 0 || revision > 2147483647) return fail("Invalid settings revision. Reload this page.");
+  const intent = form.get("intent");
+  if (intent !== "draft" && intent !== "publish" && intent !== "unpublish") return fail("Choose a valid save action.");
+  if (intent === "unpublish") return { success: true as const, revision, intent, content: null };
+  const raw = form.get("content");
+  if (typeof raw !== "string" || raw.length > 50000) return fail("Settings are too large or invalid.");
+  let content: unknown;
+  try { content = JSON.parse(raw); } catch { return fail("Invalid settings document."); }
+  const parsed = recruitmentConfigSchema.safeParse(content);
+  if (!parsed.success) return fail(parsed.error.issues.map(issue => `${issue.path.join(".")}: ${issue.message}`).join("\n"));
+  return { success: true as const, revision, intent, content: parsed.data };
+}
 export const defaultRecruitmentConfig: RecruitmentConfig = {
   serverRegion: "", rankScheme: "", discordUrl: "", facebookUrl: "",
   discordRequirement: "", retryPolicy: "", ccnRequirement: "", mainFacebookRequirement: "",

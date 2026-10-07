@@ -6,14 +6,33 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { getOfficer } from "@/lib/officer-auth";
-import { recruitmentConfigSchema } from "@/lib/recruitment-config";
+import { parseSettingsSubmission } from "@/lib/recruitment-config";
+import { submissionsConfigured } from "@/lib/supabase/submission";
 
 export type LoginState = { message: string };
 export type SettingsState = { message: string; revision: number; success?: boolean };
+export type IntakeState = { message: string; version: number; open: boolean };
+
+export async function setIntake(_previous: IntakeState, form: FormData): Promise<IntakeState> {
+  const raw = form.get("version"), next = form.get("open");
+  const version = typeof raw === "string" && /^\d+$/.test(raw) ? Number(raw) : NaN;
+  const fail = (message: string): IntakeState => ({ message, version: Number.isSafeInteger(version) ? version : 0, open: next === "false" });
+  if (!Number.isSafeInteger(version) || version < 0 || version > 2147483647 || (next !== "true" && next !== "false")) return fail("Reload to review current intake settings.");
+  try {
+    const officer = await getOfficer();
+    if (!officer || officer.profile.role !== "admin") return fail("An active admin account is required.");
+    if (next === "true" && !submissionsConfigured()) return fail("Configure the server submission service before opening intake.");
+    const { data, error } = await officer.supabase.rpc("set_recruitment_intake", { p_open: next === "true", p_expected_version: version });
+    if (error) return fail(error.code === "40001" ? "Another admin changed intake. Reload and review before saving." : error.code === "22023" ? "Publish the application fields, retention policy, correction contact, Discord invite and requirements, and at least one ready mode first." : "Intake was not changed. Check your connection and admin access.");
+    if (!Number.isSafeInteger(data)) return fail("Could not verify the change. Reload to check intake.");
+    revalidatePath("/", "layout");
+    return { message: next === "true" ? "Applications are now open." : "Applications are now closed.", version: data, open: next === "true" };
+  } catch { return fail("Intake was not changed. Try again later."); }
+}
 
 export async function login(_previous: LoginState, form: FormData): Promise<LoginState> {
   if (!isSupabaseConfigured()) return { message: "Connect Supabase before signing in." };
-  const parsed = z.object({ email: z.email().max(254), password: z.string().min(1).max(256) })
+  const parsed = z.object({ email: z.string().trim().pipe(z.email().max(254)), password: z.string().min(1).max(256) })
     .safeParse({ email: form.get("email"), password: form.get("password") });
   if (!parsed.success) return { message: "Enter a valid email and password." };
   try {
@@ -40,30 +59,20 @@ export async function logout() {
 
 export async function saveSettings(_previous: SettingsState, form: FormData): Promise<SettingsState> {
   // Never trust the previous state or hidden inputs for authorization.
-  const revision = Number(form.get("revision"));
-  const fallback = Number.isSafeInteger(revision) && revision >= 0 ? revision : 0;
-  const fail = (message: string): SettingsState => ({ message, revision: fallback, success: false });
-  if (!Number.isSafeInteger(revision) || revision < 0) return fail("Invalid settings revision. Reload this page.");
-  const action = form.get("intent");
-  if (action !== "draft" && action !== "publish" && action !== "unpublish") return fail("Choose a valid save action.");
+  const submission = parseSettingsSubmission(form);
+  const fail = (message: string): SettingsState => ({ message, revision: submission.revision, success: false });
+  if (!submission.success) return fail(submission.message);
+  const { revision, intent: action, content } = submission;
   try {
     const officer = await getOfficer();
     if (!officer || officer.profile.role !== "admin") return fail("An active admin account is required. Sign in again if your session expired.");
-    const raw = form.get("content");
-    if (typeof raw !== "string" || raw.length > 50000) return fail("Settings are too large or invalid.");
-    let content;
-    try { content = JSON.parse(raw); } catch { return fail("Invalid settings document."); }
-    const parsed = recruitmentConfigSchema.safeParse(content);
-    if (action !== "unpublish" && !parsed.success) {
-      return fail(parsed.error.issues.map(issue => `${issue.path.join(".")}: ${issue.message}`).join("\n"));
-    }
     const { data, error } = await officer.supabase.rpc("save_recruitment_configuration", {
-      p_content: action === "unpublish" ? null : parsed.data,
+      p_content: content,
       p_expected_revision: revision, p_action: action,
     });
     if (error) return fail(error.code === "40001" ? "Another admin saved newer settings. Keep a copy of your edits, then reload and review before saving." : "Settings were not saved. Check your connection and admin access, then retry.");
     if (!Number.isSafeInteger(data)) return fail("The save could not be verified. Reload to check the current revision.");
     revalidatePath("/", "layout");
-    return { success: true, revision: data, message: action === "publish" ? "Settings published. The public pages now use this version. Applications remain closed." : action === "unpublish" ? "Public settings withdrawn. Your saved draft is retained." : "Draft saved. Public pages still use the last published version." };
+    return { success: true, revision: data, message: action === "publish" ? "Settings published. Applications are paused; review intake before reopening." : action === "unpublish" ? "Public settings withdrawn and applications paused. Your saved draft is retained." : "Draft saved. Public pages still use the last published version." };
   } catch { return fail("Settings were not saved. The service may be unavailable; your edits remain in this form."); }
 }

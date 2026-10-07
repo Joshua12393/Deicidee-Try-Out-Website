@@ -6,18 +6,18 @@ import { defaultRecruitmentConfig, initialRecruitmentConfig, recruitmentConfigSc
 
 // Public content only: no user cookies, private tables, or privileged key.
 export const getPublicConfig = cache(async () => {
-  if (!isSupabaseConfigured()) return { content: initialRecruitmentConfig, state: "setup" as const };
+  if (!isSupabaseConfigured()) return { content: initialRecruitmentConfig, state: "setup" as const, revision: 0, open: false };
   try {
     const { url, publishableKey } = getSupabaseConfig();
     const supabase = createClient(url, publishableKey, {
       auth: { persistSession: false, autoRefreshToken: false },
       global: { fetch: (input, init) => fetch(input, { ...init, cache: "no-store", signal: AbortSignal.timeout(5000) }) },
     });
-    const { data, error } = await supabase.rpc("get_public_configuration");
-    if (error) return { content: defaultRecruitmentConfig, state: "unavailable" as const };
-    if (!data) return { content: defaultRecruitmentConfig, state: "draft" as const };
-    const parsed = recruitmentConfigSchema.safeParse(data);
-    if (!parsed.success) return { content: defaultRecruitmentConfig, state: "unavailable" as const };
-    return { content: parsed.data, state: "published" as const };
-  } catch { return { content: defaultRecruitmentConfig, state: "unavailable" as const }; }
+    const { data, error } = await supabase.rpc("get_public_application_configuration");
+    if (error) return { content: defaultRecruitmentConfig, state: "unavailable" as const, revision: 0, open: false };
+    if (!data?.content) return { content: defaultRecruitmentConfig, state: "draft" as const, revision: 0, open: false };
+    const parsed = recruitmentConfigSchema.safeParse(data.content);
+    if (!parsed.success || !Number.isSafeInteger(data.revision) || typeof data.open !== "boolean") return { content: defaultRecruitmentConfig, state: "unavailable" as const, revision: 0, open: false };
+    return { content: parsed.data, state: "published" as const, revision: data.revision as number, open: data.open as boolean };
+  } catch { return { content: defaultRecruitmentConfig, state: "unavailable" as const, revision: 0, open: false }; }
 });
