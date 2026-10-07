@@ -1,6 +1,6 @@
 # Deicidee clan recruitment website plan
 
-Plan updated — 6 October 2026. Initial Next.js project foundation is now scaffolded; recruitment workflows and database implementation have not started. See README.md for setup and current limitations.
+Plan updated — 7 October 2026. Public pages, an admin/staff recruitment-settings editor, and a tested database migration are implemented in source. No Supabase project is connected; applicant submission and officer recruitment operations remain later work. See README.md and docs/PHASE_1_2_REPORT.md for evidence and limitations.
 
 ## 1. Purpose and evidence
 
@@ -81,7 +81,7 @@ Proposed progression: Pending Review → Scheduled → Under Evaluation → Pass
 
 Use separate onboarding status for passed applicants: Awaiting Requirements → Joined. Do not label every passed applicant a member immediately.
 
-Initial roles: owner (settings and officer access) and recruiter (applications, schedules, evaluations). Record which officer changed a status and when. Restrict private data to authorized officers.
+Confirmed technical roles: admin (settings publication and controlled officer access) and staff (read-only settings now; applications, schedules, and evaluations in later phases). The user selected these role names during implementation. Record which officer changed a status and when. Restrict private data to authorized officers.
 
 ## 5. Content conflicts and missing decisions
 
@@ -94,11 +94,11 @@ Resolve these before finalizing implementation:
 5. **After passing:** confirm the exact CCN format and whether MAIN FB means the applicant's main Facebook account/link.
 6. **Clan assets and contacts:** supply the original logo, official Discord invite, Facebook page/group, and any approved images.
 7. **Recruitment policies:** required personal fields, age/activity rules if any, officer responsibilities, retry policy, data retention, and whether applications can be paused.
-8. **Deployment resolved:** use Next.js on Vercel Hobby with Supabase Free and a free `.vercel.app` address. Target zero monthly cost within provider limits. The owner will create the GitHub repository; its URL and the available Supabase project remain to be supplied.
+8. **Deployment resolved:** use Next.js on Vercel Hobby with Supabase Free and a free `.vercel.app` address. Target zero monthly cost within provider limits. The repository is connected at https://github.com/Joshua12393/Deicidee-Try-Out-Website. The user confirmed there is no Supabase project yet.
 
 ## 6. Agreed implementation approach
 
-Use one Next.js application with the App Router, TypeScript, and responsive styling. Deploy public pages, application submission handlers, and officer dashboard to Vercel Hobby. Use Supabase Free for PostgreSQL and officer authentication. This replaces the earlier Laravel/Blade/MySQL proposal. The local XAMPP folder is only the workspace location; this stack does not need Apache, PHP, or local MySQL. Verify supported Node.js and package versions when implementation begins and commit the lockfile.
+Use one Next.js application with the App Router, TypeScript, and responsive styling. Deploy public pages, application submission handlers, and officer dashboard to Vercel Hobby. Use Supabase Free for PostgreSQL and officer authentication. This replaces the earlier Laravel/Blade/MySQL proposal. The local folder is only the workspace location. The user uses Laragon; this stack runs with Node.js and Supabase PostgreSQL and does not need Apache, PHP, or Laragon MySQL. Verify supported Node.js and package versions when implementation begins and commit the lockfile.
 
 Render public information statically where practical. Use server components for private data and server actions or route handlers for validated mutations. Keep interactive client components small. Never cache private applicant responses publicly.
 
@@ -114,7 +114,7 @@ Core records:
 - Status history: old/new status, actor, time, and reason.
 - Recruitment configuration: approved modes/maps, thresholds, recruitment-open flag, and official links. Snapshot the applicable rules on an attempt so later rule changes do not rewrite old evaluations.
 
-Start with officer-maintained configuration and a recruitment open/closed control. A full content editor, public roster, gallery, leaderboards, tournaments, player accounts, automatic Discord messages, and bot integration are deferred features.
+Start with officer-maintained configuration and a recruitment open/closed control. The user explicitly requested an admin editor for tryout information and official links; that scoped editor is included now. A general content editor, public roster, gallery, leaderboards, tournaments, player accounts, automatic Discord messages, and bot integration remain deferred features.
 
 Protect application and admin forms with server validation, CSRF protection, rate limiting, authorization, escaped output, and secure sessions. Store contact data privately. Do not collect game passwords, account credentials, or payment details. Avoid file uploads for the initial release; any future evidence uploads need explicit storage, access, and retention rules.
 
@@ -136,7 +136,7 @@ Protect application and admin forms with server validation, CSRF protection, rat
 5. Keep preview testing isolated from production applicant data. If another free Supabase project is unavailable, use local Supabase for database tests and keep previews without production credentials; do not consume paid resources automatically.
 6. Apply reviewed migrations separately from ordinary preview builds, then deploy and run a controlled submission-to-decision smoke test. Document code rollback and database recovery separately because reverting a deployment does not revert its database.
 
-No repository creation, account setup, push, or deployment is part of this planning-only change.
+Current implementation authorization covers scrum phases 1–2, database migrations, and the requested admin/staff settings editor. No account creation, push, or deployment has been performed.
 
 ## 7. Ordered delivery phases
 
@@ -187,3 +187,29 @@ Acceptance: end-to-end trial application succeeds, sensitive routes are protecte
 - The deployed production build completes one controlled application/review flow, and both provider accounts remain on their intended free plans.
 
 Success means a player knows what is required and how to apply, and an officer can manage that player's recruitment without losing information or relying on placeholder dashboard data.
+
+## 9. Phase 1–2 implementation decisions (7 October 2026)
+
+The scrum backlog remains the delivery sequence. The user's follow-up explicitly includes admin-editable tryout information and official links, with admin/staff roles. This advances the schema and officer settings/auth foundation from later phases without claiming the complete recruitment dashboard is finished.
+
+Unknown clan rules are managed as drafts. Administrators approve modes and publish a version; public pages never display unapproved mode thresholds or map names. The Requirements URL survives navigation and refresh. Missing community URLs appear as pending labels instead of broken buttons. The owner supplied the official clan logo on October 7, 2026; it is now used in the homepage hero and browser icon. Header and footer use the text wordmark without a trailing period.
+
+Applications and intake are locked closed at both the UI and configuration-schema level. Public forms and numeric evaluation calculators will be implemented with the later workflows. Rule text edited now is informational, not an active scoring engine. Final content and retention decisions remain admin responsibilities before launch.
+
+The versioned migration has been applied and tested in an isolated PostgreSQL engine using synthetic fixtures. Hosted Supabase migration, Auth/cookie behavior, and Vercel deployment remain unverified until project setup. See [implementation evidence](./docs/PHASE_1_2_REPORT.md) and [database setup](./docs/DATABASE_SETUP.md).
+
+## 10. Owner-confirmed rules
+
+The owner has now confirmed the following. These supersede earlier notes that treated these specific rules as unapproved:
+
+- Choose exactly one mode: TDM, ZM HMX, or Escape.
+- TDM: finish a 1v1 with a clan member/clanmate; win OR reach at least 85% of the opponent score. The calculation is 40 × 0.85 = 34 (not division). Whole-number required scores round up.
+- TDM loadout: CS GUN — HK, AK47, M4, M14EBR, TRG, AWM; any pistol; any melee. CS CHAR — SWAT. No body/head armor. Accessories allowed. Preserve the owner's emphasis: weapon lang importante.
+- ZM HMX: choose a map; score ≥350, with rounds also considered. Score alone does not determine the entire evaluation.
+- Escape: choose a map; score ≥700 OR know how to boost. Do not silently require both.
+- Discord is required for live gameplay sharing during the tryout.
+- After passing: exact CCN format `Dc.*****`; MAIN FB (main Facebook account).
+
+These are the initial admin content and the unconnected local site's public rules. Once Supabase is connected, admins still control publication. Database outages or deliberately unpublished settings never restore an older approved version automatically.
+
+Map names, server/rank scheme, official URLs, retry/retention policy, and detailed qualitative evaluation criteria remain to be supplied. Applications remain closed until the submission and officer workflows are implemented.

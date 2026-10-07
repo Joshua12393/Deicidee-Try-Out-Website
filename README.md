@@ -1,129 +1,117 @@
 # Deicidee
 
-CrossFire clan recruitment website, based on the [Google Stitch design](https://stitch.withgoogle.com/projects/849386464158307617). Players will choose exactly one tryout mode: **TDM**, **ZM HMX**, or **Escape**.
+CrossFire clan recruitment website built with Next.js, TypeScript, Tailwind CSS, and Supabase PostgreSQL/Auth. Deployment target: Vercel. Players choose exactly one mode: **TDM**, **ZM HMX**, or **Escape**.
 
-## Current status
+## Current implementation
 
-Initial project foundation only. Includes a responsive black-and-red coming-soon page, Next.js App Router, strict TypeScript, Tailwind CSS, ESLint, Supabase client helpers, and Zod validation support.
+- Public Home, Tryouts, refresh-safe Requirements section, FAQ, Community, Privacy, and closed Application page.
+- Responsive black/red styling based on the supplied Stitch reference; the owner-supplied official Deicidee logo is used in the homepage hero and browser icon. Header and footer use the text wordmark without a trailing period.
+- Officer sign-in/out and Supabase session refresh. Active **admin** and **staff** roles are checked on the server and in PostgreSQL.
+- Admin settings for mode descriptions, evaluation-rule text, approved maps, server/ranks, joining/retry/privacy policies, and official Discord/Facebook links. Admins can save drafts, publish, and unpublish. Staff can read settings.
+- Versioned SQL migration for officer profiles, configuration, configuration audit history, applications, attempts, and status history. RLS, unique submission keys, single-mode constraints, and immutable attempt snapshots are included.
+- Secret-free CI and isolated PostgreSQL migration/authorization tests.
 
-Applications, database tables, officer login, session-refresh proxy, scheduling, evaluation, and admin authorization are **not implemented yet**. No application data is collected. No Supabase account or Vercel deployment is created by this scaffold. The initial page is marked `noindex` until the public launch.
+**Applications remain closed.** Application submission, recruitment pipeline, scheduling/evaluation actions, and joining workflows belong to later scrum phases. The database rejects opening intake at this stage. No applicant form or success screen pretends to save data.
 
-See [WEBSITE_PLAN.md](./WEBSITE_PLAN.md) for the agreed scope and delivery phases.
+**No Supabase project is connected and nothing has been deployed.** Without credentials, public pages render the owner-confirmed starting rules and `/admin` shows an explicitly read-only setup preview. With Supabase connected, public pages use only the admin-published version; unpublished settings and outages show safe pending content. There are no default accounts or authentication bypasses. A hosted login/publication smoke test remains necessary after setup.
 
-## Requirements
+The product/design source is [WEBSITE_PLAN.md](./WEBSITE_PLAN.md); delivery tracking is [SCRUM_PRODUCT_BACKLOG.md](./SCRUM_PRODUCT_BACKLOG.md).
 
-- Node.js **24.x** and npm (the project includes `.nvmrc` and a Node engine requirement).
-- Git when connecting the repository you create.
-- Supabase and Vercel accounts when database setup and deployment begin.
+## Local development with Laragon
 
-Apache, PHP, and XAMPP MySQL are not required, even though the project lives in an XAMPP folder.
-
-## Run locally
-
-From the project directory:
+Use Node.js **24.x** and npm in Laragon's terminal or PowerShell:
 
 ```powershell
+Set-Location D:\xampp\htdocs\deicidee
 npm ci
 npm run dev
 ```
 
-Open [localhost:3000](http://localhost:3000). The initial home page runs without Supabase credentials.
+Open [localhost:3000](http://localhost:3000). The directory name does not change the stack. Apache, PHP, and Laragon MySQL are not needed for this Next.js/Supabase application; existing Laragon databases are untouched. Do not import the PostgreSQL migration into MySQL or phpMyAdmin.
 
-When connecting Supabase, copy the environment template once (do not overwrite an existing local configuration):
+For reproducible installs, keep `package-lock.json` and use `npm ci`. `.nvmrc` and `package.json` require Node 24. Laragon may bundle another Node version; check `node --version` in the actual terminal used to run the project.
+
+## Connect the database
+
+Follow [Database setup and migration guide](./docs/DATABASE_SETUP.md). It covers creating a development Supabase project, applying migrations, disabling public sign-up, provisioning an admin/staff member, and recovery/revocation.
+
+Copy the template only if you do not already have local configuration:
 
 ```powershell
-Copy-Item .env.example .env.local
+if (-not (Test-Path .env.local)) { Copy-Item .env.example .env.local }
 ```
 
-Set these values from your Supabase project API settings:
+Set these values locally, then restart Next.js:
 
 ```dotenv
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your-publishable-key
 ```
 
-Restart the development server after changing environment variables. These are the project URL and **publishable** key; never place a Supabase secret or service-role key in a `NEXT_PUBLIC_` variable. Local environment files are ignored by Git. Only placeholder variable names belong in `.env.example`.
+These public connection values are used with user-scoped authorization and RLS. The application does **not** need a service-role key. Never put database passwords, Supabase secrets, or service-role keys in `NEXT_PUBLIC_` variables or Git.
 
-## Commands
+## Admin and staff workflow
 
-- `npm run dev` — local development server.
-- `npm run lint` — ESLint, with warnings treated as failures.
-- `npm run typecheck` — generate Next.js route types and check TypeScript.
-- `npm run build` — production build.
-- `npm start` — serve an existing production build.
-- `npm run check` — lint, typecheck, and production build in sequence.
+1. A provisioned officer signs in at `/admin/login`.
+2. An admin edits the settings in `/admin`. Staff see the same fields read-only.
+3. **Save draft** preserves private edits without changing the public site.
+4. Mark a mode approved only after confirming its rules and map list. **Save & publish** updates public content without a new deployment.
+5. **Unpublish settings** withdraws the public version while retaining the last saved draft.
 
-The lockfile records the installed dependency versions; use `npm ci` for reproducible installs. Workflow and access-control tests will be added with those features; this scaffold does not claim to test an unimplemented recruitment backend.
+Unapproved mode details are removed from the public database response, not merely hidden in the UI. Public pages render plain text, not administrator-supplied HTML. Discord/Facebook links require HTTPS on allowlisted provider domains. Blank policy fields are labelled awaiting confirmation. Publishing rules never opens intake.
 
-### Tooling compatibility and audit
+Every configuration save checks the current admin role, updates a revision, and appends an audit event in one transaction. A stale editor is rejected; copy unsaved edits before reloading. Role assignments use controlled database provisioning, not browser-editable metadata.
 
-TypeScript is constrained to 6.0.x to match the current TypeScript ESLint parser support. ESLint stays on 9.39.x because the React/import/accessibility plugins bundled with the current Next.js lint configuration do not all declare ESLint 10 compatibility. npm marks ESLint 9 deprecated; upgrade the lint stack together once compatible versions are available.
+## Commands and checks
 
-At setup on 6 October 2026, `npm audit --omit=dev` reported zero production vulnerabilities. The full audit reported five high-severity development dependency entries from the `braces` → `micromatch` → `fast-glob` → Next.js lint-plugin chain. npm's proposed forced fix downgrades the Next.js lint configuration to an older major, so it was not applied. Recheck this tooling advisory before CI processes untrusted input; do not run `npm audit fix --force` blindly.
+- `npm run dev` — development server.
+- `npm run lint` — ESLint; warnings fail.
+- `npm run typecheck` — Next.js route types and TypeScript.
+- `npm test` — configuration validation and isolated migration/RLS tests.
+- `npm run test:db` — migration, authorization, and persistence-constraint tests only.
+- `npm run build` / `npm start` — production build / local production server.
+- `npm run check` — lint, types, tests, and production build.
+- `npm run db:start` / `npm run db:stop` — optional full local Supabase stack; requires Docker.
+- `npm run db:push:check` / `npm run db:push` — inspect/apply migrations to the explicitly linked Supabase project.
 
-## Project layout
+The test database is an ephemeral PGlite PostgreSQL instance. Tests apply the actual migration and exercise anonymous, authenticated non-officer, staff, admin, and revoked-officer roles. Supabase's Auth schema/JWT identity is stubbed in this isolated test harness; no production database or secrets are used. These tests do not substitute for hosted Auth, cookie refresh, or PostgREST integration checks.
 
-```text
-src/
-  app/
-    globals.css          Tailwind import and base theme
-    layout.tsx           Root layout and starter metadata
-    page.tsx             Coming-soon landing page
-  lib/
-    clan.ts              Clan identity and the three confirmed modes
-    supabase/
-      config.ts          Environment validation, evaluated on client creation
-      client.ts          Browser Supabase factory
-      server.ts          Server action / route handler Supabase factory
-.env.example             Public Supabase configuration placeholders
-WEBSITE_PLAN.md           Recruitment scope and delivery plan
-```
+GitHub Actions runs `npm ci`, `npm run check`, and the production dependency audit without production secrets. CI does not deploy or migrate a remote database.
 
-## Supabase integration boundaries
+### Dependency advisory disposition
 
-The helper files do not create tables, authenticate officers, or grant permissions. The server helper writes cookies and is intended for **server actions and route handlers**, not read-only Server Components. Before implementing authenticated pages, add the [Supabase session-refresh proxy and SSR integration](https://supabase.com/docs/guides/auth/server-side/creating-a-client).
+On 7 October 2026 the full npm audit still reports five high-severity development dependency entries in the `braces` → `micromatch` → `fast-glob` → Next.js ESLint chain, describing stack exhaustion from deeply nested patterns. The proposed automatic fix downgrades the Next.js lint configuration across major versions and was not applied. Production dependency results are recorded in the implementation report. Avoid introducing untrusted glob patterns into tooling; recheck compatible upstream fixes before release. This development-tool advisory is not being labelled resolved.
 
-Next database steps:
+## Vercel deployment
 
-1. Create versioned migrations for officer profiles, applications, attempts, status history, and recruitment configuration.
-2. Enable and test row-level security. Anonymous users must not read applicant records; officers must not assign themselves higher roles.
-3. Disable public officer sign-up and provision the first owner through a controlled setup step.
-4. Implement server-validated submissions with shared rate limiting, database-backed duplicate protection, and private contact data.
-5. Implement session verification and role checks on every private read and mutation. UI visibility is not an authorization check.
+The app uses the standard Next.js preset; no PHP server, custom output directory, or `vercel.json` is required.
 
-Use the publishable key with user-scoped access wherever possible. Add server-only privileged credentials only when an implemented operation needs them, with explicit access checks. Do not commit database exports, real applicant data, or secrets.
+1. Create and configure a Supabase development project first. Apply the reviewed migration separately from Vercel builds.
+2. Import the existing [GitHub repository](https://github.com/Joshua12393/Deicidee-Try-Out-Website) into Vercel. Select Next.js, Node 24, repository root, `npm run build`, and the framework's default output.
+3. Supply the two Supabase environment variables for the intended environment. Keep preview deployments unconfigured or connected to a separate development project; never give previews production applicant access.
+4. Disable public Supabase sign-up. Set the Auth site URL to the final HTTPS deployment and allow only intended redirect URLs. The password sign-in uses no arbitrary return URL. Recovery is administrator-assisted until a tested recovery UI/provider is added.
+5. Run the hosted acceptance checks in the database guide: admin login/save/publish/logout, staff denial, unauthenticated denial, expiration, revocation, and public refresh.
+6. Keep `noindex` and intake closed during development. Publishing this informational site is distinct from launching recruitment. Complete later scrum phases before accepting players' information.
 
-## GitHub and Vercel
+Use the free `.vercel.app` address if desired. Vercel Hobby and Supabase Free eligibility/quotas must be checked in the actual accounts before launch. No paid services, email/SMS automation, gameplay uploads, or custom domain are required by this implementation.
 
-Source repository: [Deicidee-Try-Out-Website](https://github.com/Joshua12393/Deicidee-Try-Out-Website). Changes are committed separately by module or distinct action before pushing. Generated files, dependencies, and local environment secrets are excluded.
+A code rollback does not undo database changes. Keep later migrations additive and forward-only; back up any real data before database changes and test restoration in isolation.
 
-Deployment checklist for later:
+## Main files
 
-1. Import the GitHub repository in Vercel and select the Next.js framework preset, Node.js 24.x, and the repository root directory. The normal build command is `npm run build`; leave the output directory at the framework default.
-2. Keep the account on Hobby and use the free `.vercel.app` address; a custom domain is optional and outside the zero-cost plan.
-3. Configure Supabase environment variables for the intended environment. The coming-soon page can deploy without a database; future recruitment features cannot.
-4. Keep preview deployments isolated from production applicant data. Use local Supabase or an available separate free project for testing; otherwise keep previews without production database credentials.
-5. Before enabling officer auth, configure the allowed site/redirect URLs in Supabase and verify login, logout, expiration, and account recovery.
-6. Apply reviewed database migrations separately from preview builds. Run `npm run check`, deploy, and verify the full implemented workflow on the live URL.
-7. Remove `noindex` when the finished public site is ready. Configure final metadata, official community links, and approved assets then.
-
-No custom `vercel.json` is required for the standard Next.js deployment at this stage.
-
-## Free-tier expectations
-
-Target **zero monthly cost within provider limits**. [Vercel Hobby](https://vercel.com/docs/plans/hobby) is restricted to personal, non-commercial use and has finite quotas. [Supabase Free](https://supabase.com/pricing) has quotas and may pause after a week of inactivity. Recheck both providers before launch; zero cost does not guarantee unlimited capacity or uninterrupted availability.
-
-Initial communication stays manual through Discord; no paid email/SMS, stored gameplay video, bot, or custom-domain service is required. Keep private database backups and document restoration when persistence is added.
-
-## Next implementation milestones
-
-1. Confirm CrossFire server/rank scheme, approved maps, exact CCN wording, clan logo, and official Discord/Facebook links.
-2. Build the Home, Tryouts/Requirements, FAQ, and Apply screens from Stitch.
-3. Implement application persistence and protected officer operations.
-4. Test rule boundaries, permissions, mobile layouts, and the deployment workflow.
+- `src/app/` — public pages and restricted officer screens/actions.
+- `src/components/` — shared navigation, panels, and settings/login forms.
+- `src/lib/recruitment-config.ts` — shared validation, confirmed starting rules, and separate empty safe fallbacks.
+- `src/lib/public-config.ts` — published-only public reads with unavailable-state fallback.
+- `src/lib/officer-auth.ts`, `src/proxy.ts` — validated identities, active roles, and SSR refresh.
+- `supabase/migrations/` — versioned PostgreSQL schema, policies, and settings RPCs.
+- `tests/` — isolated validation and database authorization checks.
+- `docs/` — setup and implementation evidence.
 
 ## References
 
-- [Next.js documentation](https://nextjs.org/docs)
-- [Supabase SSR guide](https://supabase.com/docs/guides/auth/server-side)
-- [Website plan](./WEBSITE_PLAN.md)
+- [Supabase migrations](https://supabase.com/docs/guides/deployment/database-migrations)
+- [Supabase row-level security](https://supabase.com/docs/guides/database/postgres/row-level-security)
+- [Supabase SSR](https://supabase.com/docs/guides/auth/server-side/creating-a-client)
+- [Next.js on Vercel](https://vercel.com/docs/frameworks/full-stack/nextjs)
+- [Vercel Node.js versions](https://vercel.com/docs/functions/runtimes/node-js/node-js-versions)
