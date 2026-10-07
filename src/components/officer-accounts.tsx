@@ -1,0 +1,13 @@
+import {z} from "zod";
+import {OfficerAccountForm} from "@/components/officer-account-form";
+import {manilaDate,type Officer} from "@/lib/dashboard";
+import {privilegedConfigured} from "@/lib/supabase/privileged";
+import {CreateStaffForm} from "@/components/create-staff-form";
+export async function OfficerAccounts({officer:{supabase,profile}}:{officer:Officer}){
+ if(profile.role!=="admin")return null;
+ const {data,error}=await supabase.from("officer_profiles").select("id,display_name,role,active,version,auth_user_id,deletion_requested_at,deleted_at").order("created_at");
+ if(error)throw new Error("Could not load officer accounts.");
+ const {data:events,error:eventsError}=await supabase.from("officer_history").select("id,action,reason,created_at,target:officer_profiles!target_id(display_name),actor:officer_profiles!actor_id(display_name)").order("created_at",{ascending:false}).limit(10);
+ const name=(value:unknown)=>{const parsed=z.object({display_name:z.string()}).safeParse(value);return parsed.success?parsed.data.display_name:"System";};
+ return <><p>Suspend access for a reversible removal, or delete the login account when an officer leaves. Your own account cannot be removed; the last active admin is protected.</p>{!privilegedConfigured()&&<p className="notice">Account creation and deletion need the server-only Supabase key.</p>}<CreateStaffForm ready={privilegedConfigured()}/><div className="grid-two">{data.map(person=><section className="panel officer-card" key={person.id}><h3>{person.display_name}</h3><p>{person.role} · {!person.auth_user_id?"Account deleted":person.deletion_requested_at?"Deletion pending":person.active?"Active":"Suspended"}</p><p className="muted application-reference">Account ID: {person.id}</p>{person.id===profile.id?<p className="tag">Your account · protected</p>:!person.auth_user_id?<p className="muted">Historical officer profile retained{person.deleted_at?` · ${manilaDate(person.deleted_at)}`:""}.</p>:<OfficerAccountForm id={person.id} version={person.version} name={person.display_name} active={person.active} pendingDeletion={Boolean(person.deletion_requested_at)} canDelete={privilegedConfigured()}/>}</section>)}</div><section className="section"><h3>Recent account activity</h3>{eventsError?<p className="notice">Account activity could not be loaded.</p>:events?.length?events.map(event=><article className="history-item" key={event.id}><p>{name(event.target)} · {event.action.replaceAll("_"," ")}</p><p className="muted">{name(event.actor)} · {manilaDate(event.created_at)}</p><p className="preserve-lines">{event.reason}</p></article>):<p>No account-management events yet.</p>}</section></>;
+}
