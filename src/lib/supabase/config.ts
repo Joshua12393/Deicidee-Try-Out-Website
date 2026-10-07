@@ -5,6 +5,13 @@ const configSchema = z.object({
   publishableKey: z.string().min(1),
 });
 
+export function isSupabaseConfigured() {
+  return configSchema.safeParse({
+    url: process.env.NEXT_PUBLIC_SUPABASE_URL,
+    publishableKey: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+  }).success;
+}
+
 export function getSupabaseConfig() {
   const result = configSchema.safeParse({
     url: process.env.NEXT_PUBLIC_SUPABASE_URL,
