@@ -34,6 +34,7 @@ before(async () => {
     await db.exec(await readFile(new URL(file, dir), 'utf8'));
   }
   await db.query('insert into auth.users(id) values ($1),($2),($3)', [admin, staff, outsider]);
+  await db.exec("insert into auth.users(id) values ('77777777-7777-4777-8777-777777777777'); insert into public.officer_profiles(id,display_name,role) values ('77777777-7777-4777-8777-777777777777','Synthetic backup admin','admin');");
   await db.query(`insert into public.officer_profiles(id, display_name, role) values ($1, 'Synthetic admin', 'admin'), ($2, 'Synthetic staff', 'staff')`, [admin, staff]);
   await db.query(`insert into public.applications(id, submission_key, ign, discord_name, reason, mode, acknowledgement_version, acknowledged_at)
     values ($1, gen_random_uuid(), 'Synthetic player', 'test-only', 'Test fixture', 'tdm', 'test-v1', now())`, [app]);
@@ -51,11 +52,11 @@ async function asRole(role, user, fn) {
 }
 const save = (tx, doc, revision, action) => tx.query('select public.save_recruitment_configuration($1::jsonb, $2, $3) as revision', [doc === null ? null : JSON.stringify(doc), revision, action]);
 
-test('migration creates all six RLS-protected tables and closed intake', async () => {
+test('migration creates all ten RLS-protected tables and closed intake', async () => {
   const { rows } = await db.query("select count(*)::int as count from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relkind='r' and c.relrowsecurity");
-  assert.equal(rows[0].count, 6);
+  assert.equal(rows[0].count, 10);
   assert.equal((await db.query('select recruitment_open from public.recruitment_configuration')).rows[0].recruitment_open, false);
-  await assert.rejects(db.exec('update public.recruitment_configuration set recruitment_open=true'), /check constraint/i);
+  await assert.rejects(db.exec('update public.recruitment_configuration set recruitment_open=true'), /Publish approved fields/i);
 });
 test('anonymous settings start empty; private tables are inaccessible', async () => {
   assert.equal((await asRole('anon', null, tx => tx.query('select public.get_public_configuration() as content'))).rows[0].content, null);
@@ -133,4 +134,142 @@ test('audit history is append-only', async () => {
   await db.query("insert into public.status_history(application_id,attempt_id,new_status,reason) values ($1,$2,'retry_requested','Synthetic event')", [app, attempt]);
   await assert.rejects(db.exec("update public.status_history set reason='changed'"), /append-only/);
   await assert.rejects(db.exec('delete from public.status_history'), /append-only/);
+});
+
+const payload = { ign:'Synthetic applicant', first_name:'', last_name:'', rank:'', previous_clan:'None', facebook_url:'', discord_name:'test-only', reason:'Synthetic submission', mode:'tdm', selected_map:'', consent:true };
+const bucket = 'a'.repeat(64);
+const key = '66666666-6666-4666-8666-666666666666';
+const submit = (tx, submissionKey=key, doc=payload, revision=5, rateBucket=bucket) => tx.query('select public.submit_application($1::uuid,$2,$3::jsonb,$4) as reference',[submissionKey,revision,JSON.stringify(doc),rateBucket]);
+const intake = (tx, open, version) => tx.query('select public.set_recruitment_intake($1,$2) as version',[open,version]);
+let reference;
+test('submission RPC is private and closure is enforced by the database', async () => {
+  for (const role of ['anon','authenticated']) await assert.rejects(asRole(role, role==='authenticated' ? staff : null, tx => submit(tx)), /permission denied/i);
+  await assert.rejects(asRole('service_role',null, tx => submit(tx)), /Recruitment is closed/);
+  await assert.rejects(asRole('authenticated',staff, tx => intake(tx,true,0)), /Admin access required/);
+  await assert.rejects(asRole('authenticated',admin, tx => intake(tx,true,0)), /Publish approved fields/);
+  await assert.rejects(asRole('anon',null, tx=>tx.exec('select * from public.application_rate_limits')), /permission denied/i);
+  assert.equal((await asRole('authenticated',staff, tx=>tx.exec('select * from public.intake_history')))[0].rows.length,0);
+});
+test('admin opens approved intake; atomic public configuration contains only public content', async () => {
+  content.applicationFields='Required IGN, Discord, reason, one mode and consent. Optional name, rank, previous clan and Facebook.';
+  content.retentionPolicy='Synthetic test retention'; content.correctionContact='Synthetic officer contact'; content.discordUrl='https://discord.gg/synthetic'; content.discordRequirement='Synthetic live sharing requirement';
+  content.modes.zm_hmx={approved:true, description:'Synthetic ZM', rules:'Synthetic rule', maps:['Synthetic ZM']};
+  await asRole('authenticated',admin,tx=>save(tx,content,4,'publish'));
+  assert.equal((await asRole('authenticated',admin,tx=>intake(tx,true,0))).rows[0].version,1);
+  const publicConfig=(await asRole('anon',null,tx=>tx.query('select public.get_public_application_configuration() as config'))).rows[0].config;
+  assert.equal(publicConfig.open,true); assert.equal(publicConfig.revision,5); assert.equal(publicConfig.content.discordUrl,content.discordUrl); assert.deepEqual(Object.keys(publicConfig).sort(),['content','open','revision']);
+  await assert.rejects(asRole('authenticated',admin,tx=>intake(tx,false,0)), /Intake settings changed/);
+});
+test('server submissions reject invalid mode/map/consent/revision/status without side effects', async () => {
+  for (const extra of [{consent:false},{status:'passed'},{mode:'tdm,escape'},{mode:'escape'},{selected_map:'unexpected'},{mode:'zm_hmx', selected_map:'unknown'},{facebook_url:'https://facebook.com.evil.test/x'}]) await assert.rejects(asRole('service_role',null,tx=>submit(tx,key,{...payload,...extra})), /Invalid application|Mode unavailable|TDM does not require|Choose an approved map/);
+  await assert.rejects(asRole('service_role',null,tx=>submit(tx,key,payload,4)), /Published requirements changed/);
+  assert.equal((await db.query('select count(*)::int as count from public.application_rate_limits')).rows[0].count,0);
+});
+test('a persisted application returns one receipt, rule snapshot and initial history', async () => {
+  reference=(await asRole('service_role',null,tx=>submit(tx))).rows[0].reference;
+  assert.match(reference,/^[a-f0-9-]{36}$/);
+  const saved=(await db.query('select * from public.applications where submission_key=$1',[key])).rows[0];
+  assert.equal(saved.status,'pending_review'); assert.equal(saved.onboarding,'not_applicable'); assert.equal(saved.acknowledgement_version,'config:5'); assert.deepEqual(saved.submission_snapshot,content); assert.ok(saved.acknowledged_at); assert.equal(saved.first_name,null);
+  assert.equal((await db.query('select count(*)::int as count from public.status_history where application_id=$1',[saved.id])).rows[0].count,1);
+  assert.equal((await asRole('service_role',null,tx=>submit(tx))).rows[0].reference,reference);
+  assert.equal((await db.query('select submissions from public.application_rate_limits where bucket=$1',[bucket])).rows[0].submissions,1);
+  await assert.rejects(asRole('service_role',null,tx=>submit(tx,key,{...payload,reason:'Changed'})), /Submission key already used/);
+});
+test('durable rate limit rejects sixth insert and resumes after the window', async () => {
+  for(let i=0;i<4;i++) await asRole('service_role',null,tx=>submit(tx,crypto.randomUUID()));
+  const before=(await db.query('select count(*)::int as count from public.applications')).rows[0].count;
+  await assert.rejects(asRole('service_role',null,tx=>submit(tx,crypto.randomUUID())), /Too many applications/);
+  assert.equal((await db.query('select count(*)::int as count from public.applications')).rows[0].count,before);
+  assert.equal((await db.query('select submissions from public.application_rate_limits where bucket=$1',[bucket])).rows[0].submissions,5);
+  await db.query("update public.application_rate_limits set started_at=now()-interval '11 minutes' where bucket=$1",[bucket]);
+  await asRole('service_role',null,tx=>submit(tx,crypto.randomUUID(),{...payload,mode:'zm_hmx',selected_map:'Synthetic ZM'}));
+  assert.equal((await db.query('select submissions from public.application_rate_limits where bucket=$1',[bucket])).rows[0].submissions,1);
+});
+test('drafts preserve intake; publication pauses it; saved receipts survive closure/withdrawal', async () => {
+  await asRole('authenticated',admin,tx=>save(tx,{...content,serverRegion:'New synthetic draft'},5,'draft'));
+  let current=(await db.query('select * from public.recruitment_configuration')).rows[0];
+  assert.equal(current.recruitment_open,true); assert.equal(current.published_revision,5);
+  await asRole('authenticated',admin,tx=>save(tx,{...content,serverRegion:'New synthetic publication'},6,'publish'));
+  current=(await db.query('select * from public.recruitment_configuration')).rows[0];
+  assert.equal(current.recruitment_open,false); assert.equal(current.published_revision,7); assert.equal(current.intake_version,2);
+  assert.equal((await asRole('service_role',null,tx=>submit(tx))).rows[0].reference,reference);
+  await assert.rejects(asRole('service_role',null,tx=>submit(tx,crypto.randomUUID())), /Recruitment is closed/);
+  await asRole('authenticated',admin,tx=>intake(tx,true,2));
+  await asRole('authenticated',admin,tx=>save(tx,null,7,'unpublish'));
+  assert.equal((await db.query('select recruitment_open from public.recruitment_configuration')).rows[0].recruitment_open,false);
+  assert.equal((await asRole('service_role',null,tx=>submit(tx))).rows[0].reference,reference);
+  await assert.rejects(db.exec('delete from public.intake_history'), /append-only/);
+  assert.equal((await db.query('select count(*)::int as count from public.intake_history')).rows[0].count,4);
+});
+
+const backup='77777777-7777-4777-8777-777777777777';
+const account=(tx,id,version,action,reason='Synthetic account test',confirmation='Synthetic staff')=>tx.query('select public.manage_officer($1,$2,$3,$4,$5) as result',[id,version,action,reason,confirmation]);
+test('pipeline search treats punctuation literally and returns accurate private counts',async()=>{
+ const list=await asRole('authenticated',staff,tx=>tx.query("select public.list_applications('Synthetic',null,null,1) as result"));
+ assert.equal(list.rows[0].result.total,7);assert.equal(list.rows[0].result.count,7);assert.equal(list.rows[0].result.pending,7);
+ const filter=await asRole('authenticated',staff,tx=>tx.query("select public.list_applications('',null,'zm_hmx',1) as result"));assert.equal(filter.rows[0].result.count,1);
+ assert.equal((await asRole('authenticated',staff,tx=>tx.query("select public.list_applications('%',null,null,1) as result"))).rows[0].result.count,0);
+ await assert.rejects(asRole('anon',null,tx=>tx.query('select public.list_applications()')),/permission denied/i);
+ await assert.rejects(asRole('authenticated',outsider,tx=>tx.query('select public.list_applications()')),/Officer access required/);
+});
+test('private notes are attributed, append-only and idempotent',async()=>{
+ const noteKey=crypto.randomUUID(); const add=(tx,body='Synthetic note')=>tx.query('select public.add_application_note($1,$2,$3) as id',[app,noteKey,body]);
+ const first=(await asRole('authenticated',staff,tx=>add(tx))).rows[0].id;
+ assert.equal((await asRole('authenticated',staff,tx=>add(tx))).rows[0].id,first);
+ await assert.rejects(asRole('authenticated',staff,tx=>add(tx,'Changed note')),/Note key already used/);
+ await assert.rejects(asRole('authenticated',outsider,tx=>add(tx)),/Officer access required/);
+ assert.equal((await asRole('authenticated',outsider,tx=>tx.query('select * from public.application_notes'))).rows.length,0);
+ await assert.rejects(db.exec("update public.application_notes set body='overwrite'"),/append-only/);
+ await assert.rejects(db.exec('delete from public.application_notes'),/append-only/);
+});
+test('triage transitions require current version/reason and admin-only reopening',async()=>{
+ const move=(tx,status,version=1,reason='Synthetic decision')=>tx.query('select public.triage_application($1,$2,$3,$4) as version',[app,version,status,reason]);
+ await assert.rejects(asRole('authenticated',outsider,tx=>move(tx,'closed')),/Officer access required/);
+ await assert.rejects(asRole('authenticated',staff,tx=>move(tx,'passed')),/appropriate workflow/);
+ await assert.rejects(asRole('authenticated',staff,tx=>move(tx,'closed',1,'')),/reason is required/);
+ assert.equal((await asRole('authenticated',staff,tx=>move(tx,'closed'))).rows[0].version,2);
+ await assert.rejects(asRole('authenticated',admin,tx=>move(tx,'pending_review',1)),/Application changed/);
+ await assert.rejects(asRole('authenticated',staff,tx=>move(tx,'pending_review',2)),/appropriate workflow/);
+ assert.equal((await asRole('authenticated',admin,tx=>move(tx,'pending_review',2))).rows[0].version,3);
+ assert.equal((await db.query('select count(*)::int as n from public.status_history where application_id=$1 and actor_id=$2',[app,staff])).rows[0].n,1);
+});
+test('only admins provision staff; supplied role elevation is impossible',async()=>{
+ const id=crypto.randomUUID();await db.query('insert into auth.users(id) values($1)',[id]);
+ await assert.rejects(asRole('authenticated',staff,tx=>tx.query('select public.provision_staff($1,$2)',[id,'Synthetic future staff'])),/Admin access required/);
+ await asRole('authenticated',admin,tx=>tx.query('select public.provision_staff($1,$2)',[id,'Synthetic future staff']));
+ const person=(await db.query('select * from public.officer_profiles where id=$1',[id])).rows[0];assert.equal(person.role,'staff');assert.equal(person.auth_user_id,id);assert.equal(person.active,true);
+ await assert.rejects(asRole('authenticated',admin,tx=>tx.query('select public.provision_staff($1,$2)',[id,'Duplicate'])),/unique constraint/i);
+});
+test('officer removal protects self/last admin and rejects unauthorized or stale requests',async()=>{
+ await assert.rejects(asRole('authenticated',staff,tx=>account(tx,backup,1,'suspend')),/Admin access required/);
+ await assert.rejects(asRole('authenticated',admin,tx=>account(tx,admin,1,'delete','Test','Synthetic admin')),/own access/);
+ await assert.rejects(asRole('authenticated',admin,tx=>account(tx,staff,99,'suspend')),/Officer changed/);
+ await db.query('update public.officer_profiles set active=false where id=$1',[backup]);
+ await assert.rejects(db.query('update public.officer_profiles set active=false where id=$1',[admin]),/last active admin/);
+ await assert.rejects(db.query('delete from auth.users where id=$1',[admin]),/last active admin/);
+ await db.query('update public.officer_profiles set active=true where id=$1',[backup]);
+});
+test('suspension revokes active sessions; deleted Auth users retain attributed history',async()=>{
+ await asRole('authenticated',admin,tx=>account(tx,staff,1,'suspend'));
+ assert.equal((await asRole('authenticated',staff,tx=>tx.query('select * from public.applications'))).rows.length,0);
+ await assert.rejects(asRole('authenticated',staff,tx=>tx.query('select public.list_applications()')),/Officer access required/);
+ await asRole('authenticated',admin,tx=>account(tx,staff,2,'activate'));
+ assert.equal((await asRole('authenticated',staff,tx=>tx.query('select public.current_officer_role() as role'))).rows[0].role,'staff');
+ await assert.rejects(asRole('authenticated',admin,tx=>account(tx,staff,3,'delete','Staff left','Wrong confirmation')),/display name/);
+ await asRole('authenticated',admin,tx=>account(tx,staff,3,'delete','Staff left'));
+ let person=(await db.query('select * from public.officer_profiles where id=$1',[staff])).rows[0];assert.equal(person.active,false);assert.ok(person.deletion_requested_at);
+ await assert.rejects(asRole('authenticated',admin,tx=>account(tx,staff,4,'activate')),/Deletion is pending/);
+ assert.equal((await asRole('authenticated',admin,tx=>account(tx,staff,4,'delete'))).rows[0].result.auth_user_id,staff);
+ await db.query('delete from auth.users where id=$1',[staff]);
+ person=(await db.query('select * from public.officer_profiles where id=$1',[staff])).rows[0];assert.equal(person.auth_user_id,null);assert.equal(person.active,false);assert.ok(person.deleted_at);
+ assert.equal((await db.query('select actor_id from public.application_notes where actor_id=$1',[staff])).rows[0].actor_id,staff);
+ assert.equal((await asRole('authenticated',staff,tx=>tx.query('select public.current_officer_role() as role'))).rows[0].role,null);
+ await assert.rejects(db.exec("delete from public.officer_history"),/append-only/);
+});
+
+test('pagination is bounded and stable across equal submission times',async()=>{
+ for(let i=0;i<21;i++)await db.query("insert into public.applications(submission_key,ign,discord_name,reason,mode,acknowledgement_version,acknowledged_at,created_at) values(gen_random_uuid(),'Synthetic pagination','test-only','Test','tdm','test-v1',now(),'2026-10-08T00:00:00Z')");
+ const list=page=>asRole('authenticated',admin,tx=>tx.query("select public.list_applications('Synthetic pagination',null,null,$1) as result",[page]));
+ const first=(await list(1)).rows[0].result,second=(await list(2)).rows[0].result;
+ assert.equal(first.count,21);assert.equal(first.items.length,20);assert.equal(second.items.length,1);assert.equal(new Set([...first.items,...second.items].map(row=>row.id)).size,21);
 });
