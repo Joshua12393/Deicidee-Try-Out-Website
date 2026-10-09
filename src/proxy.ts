@@ -20,4 +20,5 @@ export async function proxy(request: NextRequest) {
   response.headers.set("Cache-Control", "private, no-store, max-age=0");
   return response;
 }
-export const config = { matcher: ["/admin/:path*"] };
+// The shared navigation now uses the session on public pages too.
+export const config = { matcher: ["/", "/admin/:path*", "/apply", "/tryouts", "/faq", "/privacy", "/community"] };

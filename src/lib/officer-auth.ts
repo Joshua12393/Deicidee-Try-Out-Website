@@ -1,9 +1,10 @@
 import "server-only";
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 
-export async function getOfficer() {
+export const getOfficer = cache(async () => {
   if (!isSupabaseConfigured()) return null;
   const supabase = await createClient();
   const { data: { user }, error } = await supabase.auth.getUser();
@@ -13,7 +14,7 @@ export async function getOfficer() {
   if (profileError) throw new Error("Officer access is temporarily unavailable. Try again later.");
   if (!profile || !["admin", "staff"].includes(profile.role)) return null;
   return { supabase, profile: profile as { id: string; display_name: string; role: "admin" | "staff"; active: boolean } };
-}
+});
 
 export async function requireOfficer() {
   const officer = await getOfficer();

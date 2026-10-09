@@ -31,11 +31,11 @@ try{
  const signed=await staff.auth.signInWithPassword({email,password});assert.equal(signed.error,null);
  const headers={cookie:jar.map(x=>x.name+'='+x.value).join('; ')};
  const applications=await fetch('http://127.0.0.1:3000/admin?tab=applications',{headers});const html=await applications.text();
- assert.equal(applications.status,200);assert.ok(html.includes('Requirements'));assert.ok(html.includes('Applications'));assert.ok(html.includes('Staff · application reviews'));assert.ok(!html.includes('Create a staff account'));
+ assert.equal(applications.status,200);assert.ok(html.includes('Requirements'));assert.ok(html.includes('Applications'));assert.ok(html.includes('Staff'));assert.ok(html.includes('signed in'));assert.ok(html.includes('Logout'));assert.ok(!html.includes('Create an officer account'));
  console.log('Hosted staff login and rendered Applications tab: passed');
  const requirements=await fetch('http://127.0.0.1:3000/admin?tab=requirements',{headers});const req=await requirements.text();
- assert.equal(requirements.status,200);assert.ok(req.includes('Requirements are read-only for staff.'));assert.ok(!req.includes('Create a staff account'));
- console.log('Staff Requirements tab read-only; account management absent: passed');
+ assert.equal(requirements.status,200);assert.ok(req.includes('Submit for review'));assert.ok(req.includes('Save draft'));assert.ok(!req.includes('Create an officer account'));assert.ok(!req.includes('Save &amp; publish'));
+ console.log('Staff private draft and publication request controls; account management absent: passed');
  const denied=await staff.rpc('provision_staff',{p_id:crypto.randomUUID(),p_name:'Unauthorized'});assert.equal(denied.error?.code,'42501');
  console.log('Hosted staff cannot provision accounts directly: passed');
  asAdmin(`select public.manage_officer('${id}',1,'suspend','Synthetic suspension check','');`);
