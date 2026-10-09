@@ -38,7 +38,7 @@ export function parseSettingsSubmission(form: FormData) {
   const fail = (message: string) => ({ success: false as const, revision: fallback, message });
   if (!Number.isSafeInteger(revision) || revision < 0 || revision > 2147483647) return fail("Invalid settings revision. Reload this page.");
   const intent = form.get("intent");
-  if (intent !== "draft" && intent !== "publish" && intent !== "unpublish") return fail("Choose a valid save action.");
+  if (intent !== "draft" && intent !== "publish" && intent !== "unpublish" && intent !== "request") return fail("Choose a valid save action.");
   if (intent === "unpublish") return { success: true as const, revision, intent, content: null };
   const raw = form.get("content");
   if (typeof raw !== "string" || raw.length > 50000) return fail("Settings are too large or invalid.");

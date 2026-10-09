@@ -1,6 +1,7 @@
 "use server";
 
 import { z } from "zod";
+import { randomUUID } from "node:crypto";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
@@ -10,7 +11,7 @@ import { parseSettingsSubmission } from "@/lib/recruitment-config";
 import { submissionsConfigured } from "@/lib/supabase/submission";
 
 export type LoginState = { message: string };
-export type SettingsState = { message: string; revision: number; success?: boolean };
+export type SettingsState = { message: string; revision: number; success?: boolean; requestKey?: string };
 export type IntakeState = { message: string; version: number; open: boolean };
 
 export async function setIntake(_previous: IntakeState, form: FormData): Promise<IntakeState> {
@@ -60,12 +61,27 @@ export async function logout() {
 export async function saveSettings(_previous: SettingsState, form: FormData): Promise<SettingsState> {
   // Never trust the previous state or hidden inputs for authorization.
   const submission = parseSettingsSubmission(form);
-  const fail = (message: string): SettingsState => ({ message, revision: submission.revision, success: false });
+  const requestKey = z.uuid().safeParse(form.get("request_key"));
+  const fail = (message: string): SettingsState => ({ message, revision: submission.revision, success: false, requestKey: requestKey.success ? requestKey.data : undefined });
   if (!submission.success) return fail(submission.message);
   const { revision, intent: action, content } = submission;
   try {
     const officer = await getOfficer();
-    if (!officer || officer.profile.role !== "admin") return fail("An active admin account is required. Sign in again if your session expired.");
+    if (!officer) return fail("Active officer access is required. Sign in again if your session expired.");
+    if (officer.profile.role === "staff") {
+      if (action !== "draft" && action !== "request") return fail("Staff publication requires an admin review. Use Submit for review.");
+      const key = z.uuid().safeParse(form.get("request_key"));
+      const base = z.string().regex(/^\d+$/).transform(Number).pipe(z.number().int().min(0).max(2147483647)).safeParse(form.get("base_revision"));
+      if (!key.success || !base.success) return fail("Reload to review the latest settings.");
+      const { data, error } = await officer.supabase.rpc("save_officer_configuration_draft", {
+        p_content: content, p_revision: revision, p_base_revision: base.data, p_submit: action === "request", p_key: key.data,
+      });
+      if (error) return fail(error.code === "40001" ? "Your draft or the clan settings changed. Keep a copy of your edits, reload, and start from the latest settings before requesting publication." : error.code === "23505" ? "A request is already awaiting review, or this request key was used. Check your request history before submitting again." : "Your changes could not be saved. Keep your edits and retry.");
+      if (!Number.isSafeInteger(data)) return fail("Could not verify the save. Check your draft and requests before retrying.");
+      revalidatePath("/admin", "layout");
+      return { success: true, revision: data, requestKey: randomUUID(), message: action === "request" ? "Submitted for admin review. The public guide has not changed." : "Your private draft was saved." };
+    }
+    if (action === "request") return fail("Admins can publish directly or review a staff request.");
     const { data, error } = await officer.supabase.rpc("save_recruitment_configuration", {
       p_content: content,
       p_expected_revision: revision, p_action: action,

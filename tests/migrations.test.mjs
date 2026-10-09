@@ -52,9 +52,9 @@ async function asRole(role, user, fn) {
 }
 const save = (tx, doc, revision, action) => tx.query('select public.save_recruitment_configuration($1::jsonb, $2, $3) as revision', [doc === null ? null : JSON.stringify(doc), revision, action]);
 
-test('migration creates all ten RLS-protected tables and closed intake', async () => {
+test('migration creates all twelve RLS-protected tables and closed intake', async () => {
   const { rows } = await db.query("select count(*)::int as count from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relkind='r' and c.relrowsecurity");
-  assert.equal(rows[0].count, 10);
+  assert.equal(rows[0].count, 12);
   assert.equal((await db.query('select recruitment_open from public.recruitment_configuration')).rows[0].recruitment_open, false);
   await assert.rejects(db.exec('update public.recruitment_configuration set recruitment_open=true'), /Publish approved fields/i);
 });
@@ -208,6 +208,7 @@ test('pipeline search treats punctuation literally and returns accurate private 
  const list=await asRole('authenticated',staff,tx=>tx.query("select public.list_applications('Synthetic',null,null,1) as result"));
  assert.equal(list.rows[0].result.total,7);assert.equal(list.rows[0].result.count,7);assert.equal(list.rows[0].result.pending,7);
  const filter=await asRole('authenticated',staff,tx=>tx.query("select public.list_applications('',null,'zm_hmx',1) as result"));assert.equal(filter.rows[0].result.count,1);
+ const discord=await asRole('authenticated',staff,tx=>tx.query("select public.list_applications('TEST-ONLY',null,null,1) as result"));assert.equal(discord.rows[0].result.count,7);
  assert.equal((await asRole('authenticated',staff,tx=>tx.query("select public.list_applications('%',null,null,1) as result"))).rows[0].result.count,0);
  await assert.rejects(asRole('anon',null,tx=>tx.query('select public.list_applications()')),/permission denied/i);
  await assert.rejects(asRole('authenticated',outsider,tx=>tx.query('select public.list_applications()')),/Officer access required/);
@@ -272,4 +273,105 @@ test('pagination is bounded and stable across equal submission times',async()=>{
  const list=page=>asRole('authenticated',admin,tx=>tx.query("select public.list_applications('Synthetic pagination',null,null,$1) as result",[page]));
  const first=(await list(1)).rows[0].result,second=(await list(2)).rows[0].result;
  assert.equal(first.count,21);assert.equal(first.items.length,20);assert.equal(second.items.length,1);assert.equal(new Set([...first.items,...second.items].map(row=>row.id)).size,21);
+});
+
+
+const publicationStaff=crypto.randomUUID(), publicationOther=crypto.randomUUID();
+const requestKey=crypto.randomUUID();
+let publicationBase, publicationDoc;
+const staffDraft=(tx,doc,revision,base,submit=false,key=requestKey)=>tx.query('select public.save_officer_configuration_draft($1,$2,$3,$4,$5) as revision',[JSON.stringify(doc),revision,base,submit,key]);
+const reviewPublication=(tx,id,approve,revision,note='Synthetic review')=>tx.query('select public.review_publication_request($1,$2,$3,$4) as revision',[id,approve,revision,note]);
+
+test('staff drafts are private and cannot mutate or directly publish shared settings',async()=>{
+ await db.query('insert into auth.users(id) values($1),($2)',[publicationStaff,publicationOther]);
+ await db.query("insert into public.officer_profiles(id,display_name,role) values($1,'Publication author','staff'),($2,'Other staff','staff')",[publicationStaff,publicationOther]);
+ publicationBase=(await db.query('select revision from public.recruitment_configuration')).rows[0].revision;
+ publicationDoc={...structuredClone(content),serverRegion:'Requested synthetic region'};
+ assert.equal((await asRole('authenticated',publicationStaff,tx=>staffDraft(tx,publicationDoc,0,publicationBase))).rows[0].revision,1);
+ assert.equal((await asRole('authenticated',publicationOther,tx=>tx.query('select * from public.officer_configuration_drafts'))).rows.length,0);
+ assert.equal((await asRole('authenticated',publicationStaff,tx=>tx.query('select * from public.officer_configuration_drafts'))).rows.length,1);
+ await assert.rejects(asRole('anon',null,tx=>staffDraft(tx,publicationDoc,0,publicationBase)),/permission denied/i);
+ await assert.rejects(asRole('authenticated',outsider,tx=>staffDraft(tx,publicationDoc,0,publicationBase)),/Active staff access/);
+ await assert.rejects(asRole('authenticated',publicationStaff,tx=>save(tx,publicationDoc,publicationBase,'publish')),/Admin access required/);
+ await assert.rejects(asRole('authenticated',publicationStaff,tx=>tx.exec("update public.recruitment_configuration set published_content='{}'")),/permission denied/i);
+ await assert.rejects(asRole('authenticated',publicationStaff,tx=>staffDraft(tx,{},1,publicationBase)),/Invalid draft/);
+ await assert.rejects(asRole('authenticated',publicationStaff,tx=>staffDraft(tx,publicationDoc,0,publicationBase)),/draft changed/);
+});
+
+test('publication requests are immutable idempotent snapshots and never open or change intake',async()=>{
+ const before=(await db.query('select * from public.recruitment_configuration')).rows[0];
+ assert.equal((await asRole('authenticated',publicationStaff,tx=>staffDraft(tx,publicationDoc,1,publicationBase,true))).rows[0].revision,2);
+ assert.equal((await asRole('authenticated',publicationStaff,tx=>staffDraft(tx,publicationDoc,1,publicationBase,true))).rows[0].revision,2);
+ const after=(await db.query('select * from public.recruitment_configuration')).rows[0];assert.deepEqual(after,before);
+ await assert.rejects(asRole('authenticated',publicationStaff,tx=>staffDraft(tx,{...publicationDoc,serverRegion:'Tampered'},2,publicationBase,true)),/Request key already used/);
+ await assert.rejects(asRole('authenticated',publicationStaff,tx=>staffDraft(tx,publicationDoc,2,publicationBase,true,crypto.randomUUID())),/already pending/);
+ await asRole('authenticated',publicationStaff,tx=>staffDraft(tx,{...publicationDoc,serverRegion:'Later draft'},2,publicationBase));
+ assert.deepEqual((await db.query('select content from public.publication_requests where id=$1',[requestKey])).rows[0].content,publicationDoc);
+ assert.equal((await asRole('authenticated',publicationOther,tx=>tx.query('select * from public.publication_requests'))).rows.length,0);
+ await assert.rejects(asRole('anon',null,tx=>tx.query('select * from public.publication_requests')),/permission denied/i);
+ await assert.rejects(asRole('authenticated',publicationStaff,tx=>tx.exec("update public.publication_requests set status='approved'")),/permission denied/i);
+ await assert.rejects(db.query("update public.publication_requests set content='{}' where id=$1",[requestKey]),/immutable/);
+ await assert.rejects(db.exec('delete from public.publication_requests'),/retained/);
+});
+
+test('only an admin publishes a reviewed snapshot atomically and approval retries do not duplicate history',async()=>{
+ await assert.rejects(asRole('authenticated',publicationStaff,tx=>reviewPublication(tx,requestKey,true,publicationBase)),/Admin access required/);
+ await assert.rejects(asRole('authenticated',admin,tx=>reviewPublication(tx,requestKey,true,publicationBase,'')),/review note is required/);
+ const before=(await db.query('select count(*)::int as n from public.configuration_history')).rows[0].n;
+ const approved=(await asRole('authenticated',admin,tx=>reviewPublication(tx,requestKey,true,publicationBase))).rows[0].revision;
+ assert.equal(approved,publicationBase+1);
+ const cfg=(await db.query('select * from public.recruitment_configuration')).rows[0];assert.deepEqual(cfg.published_content,publicationDoc);assert.equal(cfg.recruitment_open,false);
+ const request=(await db.query('select * from public.publication_requests where id=$1',[requestKey])).rows[0];assert.equal(request.status,'approved');assert.equal(request.reviewed_by,admin);assert.ok(request.reviewed_at);assert.equal(request.review_note,'Synthetic review');
+ assert.equal((await asRole('authenticated',admin,tx=>reviewPublication(tx,requestKey,true,publicationBase))).rows[0].revision,approved);
+ assert.equal((await db.query('select count(*)::int as n from public.configuration_history')).rows[0].n,before+1);
+ await assert.rejects(asRole('authenticated',admin,tx=>reviewPublication(tx,requestKey,false,publicationBase)),/already reviewed/);
+ await assert.rejects(db.query("update public.publication_requests set review_note='overwrite' where id=$1",[requestKey]),/immutable/);
+});
+
+test('stale requests cannot overwrite newer settings; rejection leaves publication unchanged',async()=>{
+ const base=(await db.query('select revision from public.recruitment_configuration')).rows[0].revision;
+ const key=crypto.randomUUID();
+ await asRole('authenticated',publicationOther,tx=>staffDraft(tx,publicationDoc,0,base,true,key));
+ await asRole('authenticated',admin,tx=>save(tx,{...publicationDoc,serverRegion:'New admin draft'},base,'draft'));
+ await assert.rejects(asRole('authenticated',admin,tx=>reviewPublication(tx,key,true,base+1)),/Settings changed/);
+ const before=(await db.query('select * from public.recruitment_configuration')).rows[0];
+ await asRole('authenticated',admin,tx=>reviewPublication(tx,key,false,base+1,'Please update your draft'));
+ assert.deepEqual((await db.query('select * from public.recruitment_configuration')).rows[0],before);
+ assert.equal((await db.query('select status from public.publication_requests where id=$1',[key])).rows[0].status,'rejected');
+ await assert.rejects(asRole('authenticated',publicationOther,tx=>staffDraft(tx,publicationDoc,1,base,true,crypto.randomUUID())),/Settings changed/);
+});
+
+test('suspended authors lose drafts and cannot have requests approved; rejected notes remain private',async()=>{
+ const base=(await db.query('select revision from public.recruitment_configuration')).rows[0].revision;
+ const key=crypto.randomUUID();
+ await asRole('authenticated',publicationOther,tx=>staffDraft(tx,publicationDoc,1,base,true,key));
+ await db.query('update public.officer_profiles set active=false where id=$1',[publicationOther]);
+ assert.equal((await asRole('authenticated',publicationOther,tx=>tx.query('select * from public.publication_requests'))).rows.length,0);
+ await assert.rejects(asRole('authenticated',publicationOther,tx=>staffDraft(tx,publicationDoc,2,base)),/Active staff access/);
+ await assert.rejects(asRole('authenticated',admin,tx=>reviewPublication(tx,key,true,base)),/no longer active/);
+ await asRole('authenticated',admin,tx=>reviewPublication(tx,key,false,base,'Author inactive'));
+ await db.query('update public.officer_profiles set active=true where id=$1',[publicationOther]);
+});
+
+test('admin role assignment is audited, versioned and unavailable to staff; self-review is denied',async()=>{
+ const change=(tx,id,version,role)=>tx.query('select public.change_officer_role($1,$2,$3,$4) as version',[id,version,role,'Synthetic role change']);
+ await assert.rejects(asRole('authenticated',publicationOther,tx=>change(tx,publicationOther,1,'admin')),/Admin access required/);
+ await assert.rejects(asRole('authenticated',admin,tx=>change(tx,admin,1,'staff')),/own role/);
+ const base=(await db.query('select revision from public.recruitment_configuration')).rows[0].revision;
+ const key=crypto.randomUUID();
+ await asRole('authenticated',publicationOther,tx=>staffDraft(tx,publicationDoc,2,base,true,key));
+ assert.equal((await asRole('authenticated',admin,tx=>change(tx,publicationOther,1,'admin'))).rows[0].version,2);
+ await assert.rejects(asRole('authenticated',publicationOther,tx=>reviewPublication(tx,key,true,base)),/Another admin/);
+ await assert.rejects(asRole('authenticated',admin,tx=>change(tx,publicationOther,1,'staff')),/Officer changed/);
+ assert.equal((await db.query("select count(*)::int as n from public.officer_history where target_id=$1 and action='role_admin'",[publicationOther])).rows[0].n,1);
+ await asRole('authenticated',admin,tx=>change(tx,publicationOther,2,'staff'));
+ await asRole('authenticated',admin,tx=>reviewPublication(tx,key,false,base,'Synthetic cleanup'));
+ const id=crypto.randomUUID();await db.query('insert into auth.users(id) values($1)',[id]);
+ await assert.rejects(asRole('authenticated',publicationStaff,tx=>tx.query('select public.provision_officer($1,$2,$3)',[id,'New officer','admin'])),/Admin access required/);
+ await asRole('authenticated',admin,tx=>tx.query('select public.provision_officer($1,$2,$3)',[id,'New admin','admin']));
+ assert.equal((await db.query('select role from public.officer_profiles where id=$1',[id])).rows[0].role,'admin');
+ const others=(await db.query("select id from public.officer_profiles where role='admin' and active and id<>$1",[admin])).rows;
+ for(const row of others)await db.query('update public.officer_profiles set active=false where id=$1',[row.id]);
+ await assert.rejects(db.query("update public.officer_profiles set role='staff' where id=$1",[admin]),/last active admin/);
+ for(const row of others)await db.query('update public.officer_profiles set active=true where id=$1',[row.id]);
 });
