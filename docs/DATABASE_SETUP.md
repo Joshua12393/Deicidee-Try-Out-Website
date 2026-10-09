@@ -43,9 +43,9 @@ There is no public signup or role assignment endpoint. Account ownership alone d
    ```
 
 3. Sign in at `/admin/login`. Create a draft, publish confirmed information, verify the public pages, and sign out.
-4. For staff, create a separate Auth user and provision with role `'staff'`. Staff can read recruitment settings; only admins may publish. Browser user metadata does not determine roles.
+4. For staff, create a separate Auth user and provision with role `'staff'`. Staff can edit private drafts and request publication; only admins may approve/publish. Browser user metadata does not determine roles.
 
-Officer provisioning/role changes are currently performed by the trusted Supabase project administrator. A website UI to manage officer accounts is not included in this increment. The earlier plan's owner/recruiter labels map to the user-requested admin/staff roles.
+After first-admin provisioning, admins manage officer accounts and assign admin/staff roles through the dashboard. The earlier plan's owner/recruiter labels map to the user-requested admin/staff roles.
 
 ## Revocation and recovery
 
@@ -104,8 +104,14 @@ The SQL function saves payload, published rules/consent version and initial stat
 
 `20261008000100_officer_dashboard.sql` adds private notes/account history, guarded review/account RPCs and historical officer identity links (ten RLS tables total). The login UUID is stored in nullable `auth_user_id`; deleting Auth sets it null and disables the retained officer profile. Current-role checks exclude suspended/deleted/pending accounts, including still-valid older JWTs.
 
-Admins now create staff at `/admin?tab=requirements&accounts=open#officer-accounts`; Auth creation uses the server secret, and `provision_staff` independently rechecks the caller and always assigns staff. Public signup stays disabled. Profile creation failure attempts to remove the unassigned Auth login; if network/cleanup fails, inspect development Auth users before retrying. No automatic invitation email or forced password-change flow is implemented. Share initial credentials privately.
+Admins create admin/staff accounts at `/admin?tab=requirements&accounts=open#officer-accounts`; Auth creation uses the server secret, and `provision_officer` independently rechecks admin access and validates the selected role. The legacy `provision_staff` RPC remains staff-only. Public signup stays disabled. Profile creation failure attempts to remove the unassigned Auth login; if network/cleanup fails, inspect development Auth users before retrying. No automatic invitation email or forced password-change flow is implemented. Share initial credentials privately.
 
 Account deletion revokes access transactionally before calling Supabase Auth. A failed external deletion remains disabled and pending, with safe retry. Historical profile/notes/audit attribution is intentionally retained, so deletion removes the login rather than erasing prior officer actions. [Supabase deleteUser reference](https://supabase.com/docs/reference/javascript/auth-admin-deleteuser).
 
 The optional `node scripts/verify-dashboard-hosted.mjs` check is restricted to the linked `deicidee-dev` project and a running local server. It creates/deletes one disposable Auth staff login and intentionally leaves a disabled historical test profile/audit events. It never prints credentials or affects existing accounts. `docs/dashboard-hosted-check.sql` validates FK/history behavior in a rollback-only transaction. Neither hosted check runs in secret-free CI.
+
+## Staff publication review migration
+
+20261008000300_publication_review.sql adds two private RLS tables (twelve total) and guarded staff-draft, publication-review, role-change and officer-provisioning RPCs. Staff requests freeze their content and base revision without changing public settings. Only an active admin may approve another officer's current request; approval uses the existing publication transaction and closes intake. A stale request must be rejected and resubmitted after refreshing its draft. Direct table writes and anonymous RPC access are denied.
+
+All five migrations are applied to the linked development project. docs/publication-review-hosted-check.sql validates real authenticated RPC behavior inside a transaction that always rolls back on successful completion. It requires an existing active admin and an active staff account without a pending request. Real account deletion/credential handover and production browser/session acceptance remain separate checks.

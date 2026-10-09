@@ -16,8 +16,8 @@ This document breaks the five broad stages in [WEBSITE_PLAN.md](./WEBSITE_PLAN.m
 - Complete foundation: Next.js scaffold, coming-soon page, development dependencies, Supabase helper factories, environment template, and setup documentation.
 - Previously verified foundation: lint, TypeScript, production build, and homepage HTTP smoke check. These checks do not establish completion of recruitment features.
 - Repository connected: [Deicidee-Try-Out-Website](https://github.com/Joshua12393/Deicidee-Try-Out-Website).
-- Implemented in source during this increment: public pages, database migration/policies, officer authentication foundation, and admin/staff settings editor. Not yet implemented: application submission, scheduling/evaluation operations, and recruitment pipeline dashboard. Hosted integration is pending a Supabase project.
-- Phases 1–2 are implemented for review with final branding/content and hosted acceptance still pending. Selected Phase 3 foundations were advanced by explicit user request. Later recruitment phases remain planned. See the implementation record below; source completion is not deployment or owner acceptance.
+- Implemented in source: public pages, database migrations/policies, officer authentication, admin/staff settings, Phase 4 application submission and persisted confirmation, and the officer review/account dashboard. Scheduling, evaluation and joining operations remain planned. Historical hosted evidence is recorded below; current changes still require hosted acceptance.
+- Phases 1–2 and 4 are implemented for review; Phase 3 and selected Phase 5 capabilities have been advanced. See the implementation records below for remaining acceptance checks; source completion is not deployment or owner acceptance.
 
 ## Working method
 
@@ -368,3 +368,21 @@ DC-010–012 are implemented for review with the user-approved required IGN/Disc
 ## Officer review and account management — 8 October 2026
 
 DC-013 and DC-014 are implemented for development review: a real filtered/paginated pipeline, private details, notes, and history. DC-015 now includes audited close/withdraw and admin reopening, plus earlier intake controls. Protected account creation/suspension/deletion was added at the user’s request; staff cannot provision accounts or elevate roles. Scheduling/evaluation/joining and release remain pending. See [dashboard verification](./docs/OFFICER_DASHBOARD_REPORT.md).
+
+## Phase 4 reliability review — 8 October 2026
+
+- **DC-010 — Review:** retained the existing approved form and controlled input preservation. Added actual multipart/FormData validation for repeated fields, including multiple selected modes, and linked acknowledgement errors to the checkbox for assistive technology.
+- **DC-011 — Review:** preserved the original submission key and acknowledgement revision across server-rendered error responses and client rerenders. Existing PostgreSQL closure, unique-key serialization, durable rate limits, atomic application/history/snapshot persistence and receipt-only confirmation remain in use. Synthetic database checks cover retries after closure and publication withdrawal.
+- **DC-012 — Review:** kept intake closed by default and retained confirmation only after a valid persisted receipt. No public record lookup is added. Recovery responses retain player details and consent; invalid keys/revisions still require a fresh form.
+- **DC-013 follow-up:** fixed missing Discord-contact search using a new versioned migration; IGN/reference search and literal punctuation behavior remain supported. Date filtering and selectable sort order are still outstanding acceptance items.
+- Reviewed public pages, form/server actions, Supabase helpers, authentication, configuration, officer accounts/review and database policies. This source review does not establish hosted Auth or multi-connection concurrency acceptance.
+
+Remaining hosted checks: apply `20261008000200_application_search.sql` to the intended development project; verify Discord search with staff/admin access; exercise successful submission and same-key retries using synthetic records in isolated hosted development; verify closure during an in-flight form, timeout/uncertain-save recovery, parallel duplicate submissions, rate limits across separate requests, anonymous denial, and real officer sessions/revocation. Complete mobile/keyboard/screen-reader acceptance and approved policy/content review before release. Keep production intake closed until later officer workflows and release gates pass. See [Phase 4 report](./docs/PHASE_4_REPORT.md) for this run's evidence.
+
+## Publication review follow-up — 8 October 2026
+
+Latest user decisions supersede earlier staff read-only restrictions: staff may edit private drafts and submit publication requests; an admin must review and approve before those changes become public. Admins may create admin/staff accounts, change another officer's role and delete login accounts with the existing safeguards. The shared desktop header is a single sequence of logo, links and verified account/logout.
+
+Implemented and verified: isolated staff drafts, immutable/idempotent requests, readable before/after review, approval/rejection notes, stale-version and self-review protection, atomic publication/intake closure, recoverable-input preservation and audited role assignment. All five migrations, including Discord search and publication review, are applied to deicidee-dev. Local checks passed lint, TypeScript, 46 tests and production build. Hosted rollback-only checks passed actual staff submission, admin approval/replay, unauthorized mutation denial and role promotion; anonymous access to the new private tables/RPCs was denied. No synthetic records or role changes persisted, and intake remains closed.
+
+Remaining hosted checks: real admin browser approval/rejection, staff/admin Discord searches through the UI, separate-connection concurrency, Phase 4 successful application/confirmation and uncertain-response retries, closure during an in-flight application, production session/recovery, accessibility and approved policy/content review. Scheduling/evaluation/joining and release gates remain outstanding. Earlier statements that the search migration needs application are now superseded. See the dashboard and Phase 4 reports for evidence and limitations.

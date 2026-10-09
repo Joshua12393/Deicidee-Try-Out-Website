@@ -7,7 +7,7 @@ CrossFire clan recruitment website built with Next.js, TypeScript, Tailwind CSS,
 - Public Home, Tryouts, refresh-safe Requirements section, FAQ, Community, Privacy, and an application form with a closed-intake preview.
 - Responsive black/red styling based on the supplied Stitch reference; the owner-supplied official Deicidee logo is used in the homepage hero and browser icon. Header and footer use the text wordmark without a trailing period.
 - Officer sign-in/out and Supabase session refresh. Active **admin** and **staff** roles are checked on the server and in PostgreSQL.
-- Admin settings for mode descriptions, evaluation-rule text, approved maps, server/ranks, joining/retry/privacy policies, and official Discord/Facebook links. Admins can save drafts, publish, and unpublish. Staff can read settings and review applications in a separate Applications tab. Admins can create staff accounts, suspend/restore access, and delete login accounts while retaining officer history.
+- Officer settings for mode descriptions, evaluation-rule text, approved maps, server/ranks, joining/retry/privacy policies, and official Discord/Facebook links. Staff save private drafts and submit frozen changes for admin review. Admins approve/reject requests, publish their own changes, control intake, create admin/staff accounts, change roles, suspend/restore access, and delete login accounts while retaining officer history. Application review remains in a separate tab.
 - Versioned SQL migration for officer profiles, configuration, configuration audit history, applications, attempts, and status history. RLS, unique submission keys, single-mode constraints, and immutable attempt snapshots are included.
 - Secret-free CI and isolated PostgreSQL migration/authorization tests.
 
@@ -53,14 +53,14 @@ These public connection values are used with user-scoped authorization and RLS. 
 ## Admin and staff workflow
 
 1. A provisioned officer signs in at `/admin/login`.
-2. An admin edits the settings in `/admin`. Staff see the same fields read-only.
+2. An admin or staff member edits settings in `/admin`. Staff work in their own private draft.
 3. **Save draft** preserves private edits without changing the public site.
-4. Mark a mode approved only after confirming its rules and map list. **Save & publish** updates public content without a new deployment.
+4. Mark a mode approved only after confirming its rules and map list. Staff choose **Submit for review**; an admin reviews the frozen before/after changes and approves or rejects them. Admins can also use **Save & publish** for their own changes.
 5. **Unpublish settings** withdraws the public version while retaining the last saved draft.
 
 Unapproved mode details are removed from the public database response, not merely hidden in the UI. Public pages render plain text, not administrator-supplied HTML. Discord/Facebook links require HTTPS on allowlisted provider domains. Blank policy fields are labelled awaiting confirmation. Publishing rules closes intake. An admin must explicitly reopen it after reviewing the new published version. Missing privacy/retention/contact, Discord requirements/invite, or all ready modes blocks opening.
 
-Every configuration save checks the current admin role, updates a revision, and appends an audit event in one transaction. A stale editor is rejected; copy unsaved edits before reloading. New staff roles are assigned by an admin-only database RPC after server-side Auth creation, never browser-editable metadata. Open **Manage accounts** from the dashboard to create future staff, suspend/restore access or delete an account. Account deletion requires a reason, exact display-name confirmation and acknowledgement; self-removal and last-admin removal are blocked. Passwords are never echoed into action state.
+Every publication checks the current admin role and configuration revision, then updates public content and history atomically. Staff submissions never change public content or intake. Requests are idempotent, immutable and cannot be self-approved; outdated requests must be rejected and resubmitted against current settings. Recoverable errors preserve editor input. Open **Manage team accounts** to create admin/staff accounts, change another officer's role, suspend/restore access or delete an account. Guarded database RPCs enforce authorization independently of the UI. Account deletion requires a reason, exact display-name confirmation and acknowledgement; self-removal and last-admin removal are blocked. Passwords are never echoed into action state.
 
 ## Commands and checks
 
