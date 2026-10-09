@@ -1,11 +1,44 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { applicationSchema, validateApplication } from '../src/lib/application.ts';
+import { applicationSchema, validateApplication, readApplicationForm, preserveApplicationForm } from '../src/lib/application.ts';
 import { initialRecruitmentConfig } from '../src/lib/recruitment-config.ts';
 const config = structuredClone(initialRecruitmentConfig);
 config.modes.zm_hmx.maps = ['Synthetic ZM'];
 config.modes.escape.maps = ['Synthetic Escape'];
 const input = { ign: ' Test IGN ', first_name: '', last_name: '', rank: '', previous_clan: 'None', facebook_url: '', discord_name: 'test-only', reason: 'Synthetic test', mode: 'tdm', selected_map: '', consent: true };
+const formData = () => {
+  const form = new FormData();
+  for (const [name, value] of Object.entries(input)) form.set(name, name === 'consent' ? 'on' : value);
+  form.set('submission_key', '66666666-6666-4666-8666-666666666666');
+  form.set('revision', '5');
+  return form;
+};
+
+test('actual FormData rejects repeated modes and ignores privileged fields', () => {
+  const form = formData();
+  form.set('status', 'passed');
+  assert.equal(validateApplication(readApplicationForm(form), config).success, true);
+  assert.equal('status' in readApplicationForm(form), false);
+  form.append('mode', 'escape');
+  assert.equal(validateApplication(readApplicationForm(form), config).success, false);
+  form.set('mode', 'tdm'); form.append('consent', 'on');
+  assert.equal(validateApplication(readApplicationForm(form), config).success, false);
+});
+
+test('recoverable responses retain original details, consent, key and acknowledgement revision', () => {
+  const form = formData();
+  const restored = preserveApplicationForm(form);
+  assert.equal(restored.values.ign, input.ign);
+  assert.equal(restored.values.reason, input.reason);
+  assert.equal(restored.consent, true);
+  assert.equal(restored.submissionKey, form.get('submission_key'));
+  assert.equal(restored.revision, 5);
+  form.set('mode', 'invented'); form.set('submission_key', 'invalid'); form.set('revision', '-1');
+  const invalid = preserveApplicationForm(form);
+  assert.equal(invalid.values.mode, '');
+  assert.equal(invalid.submissionKey, undefined);
+  assert.equal(invalid.revision, undefined);
+});
 test('normalizes approved required fields and preserves optional None', () => {
   const result = validateApplication(input, config);
   assert.equal(result.success, true);

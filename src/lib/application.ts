@@ -16,6 +16,31 @@ export const applicationSchema = z.object({
   selected_map: optional(100), consent: z.literal(true, { error: "Read and accept the privacy and live-sharing acknowledgement." }),
 }).strict();
 export type ApplicationInput = z.infer<typeof applicationSchema>;
+const applicantFields = ["ign", "first_name", "last_name", "rank", "previous_clan", "facebook_url", "discord_name", "reason", "mode", "selected_map"] as const;
+
+// Preserve repeated fields as arrays so schema validation rejects ambiguous requests.
+export function readApplicationForm(form: FormData) {
+  const raw = Object.fromEntries(applicantFields.map(name => {
+    const entries = form.getAll(name);
+    return [name, entries.length > 1 ? entries : entries[0] ?? ""];
+  }));
+  return { ...raw, consent: form.getAll("consent").length === 1 && form.get("consent") === "on" };
+}
+
+export function preserveApplicationForm(form: FormData) {
+  const values: Record<string, string> = {};
+  for (const name of applicantFields) {
+    const value = form.get(name);
+    values[name] = typeof value === "string" ? value.slice(0, name === "reason" ? 2000 : name === "facebook_url" ? 500 : name === "previous_clan" ? 150 : 100) : "";
+  }
+  if (!["tdm", "zm_hmx", "escape"].includes(values.mode)) values.mode = "";
+  const key = z.uuid().safeParse(form.get("submission_key"));
+  const rawRevision = form.get("revision");
+  const revision = typeof rawRevision === "string" && /^\d+$/.test(rawRevision) ? Number(rawRevision) : NaN;
+  return { values, consent: form.get("consent") === "on",
+    submissionKey: key.success ? key.data : undefined,
+    revision: Number.isSafeInteger(revision) && revision >= 0 && revision <= 2147483647 ? revision : undefined };
+}
 export function validateApplication(raw: unknown, config: RecruitmentConfig) {
   return applicationSchema.superRefine((data, ctx) => {
     const mode = config.modes[data.mode];
@@ -25,4 +50,4 @@ export function validateApplication(raw: unknown, config: RecruitmentConfig) {
     }
   }).safeParse(raw);
 }
-export type ApplicationState = { message: string; errors?: Record<string, string>; reference?: string; values?: Record<string, string>; consent?: boolean };
+export type ApplicationState = { message: string; errors?: Record<string, string>; reference?: string; values?: Record<string, string>; consent?: boolean; submissionKey?: string; revision?: number };

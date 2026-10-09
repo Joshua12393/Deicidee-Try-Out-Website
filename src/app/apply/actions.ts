@@ -3,7 +3,7 @@ import { createHmac } from "node:crypto";
 import { isIP } from "node:net";
 import { headers } from "next/headers";
 import { z } from "zod";
-import { applicationSchema, validateApplication, type ApplicationState } from "@/lib/application";
+import { applicationSchema, validateApplication, readApplicationForm, preserveApplicationForm, type ApplicationState } from "@/lib/application";
 import { getPublicConfig } from "@/lib/public-config";
 import { submissionClient, submissionsConfigured } from "@/lib/supabase/submission";
 
@@ -11,13 +11,7 @@ export async function submitApplication(_previous: ApplicationState, form: FormD
   const result = await processApplication(form);
   if (result.reference) return result;
   // Preserve applicant-owned input even when the browser submits before hydration.
-  const values: Record<string, string> = {};
-  for (const name of ["ign", "first_name", "last_name", "rank", "previous_clan", "facebook_url", "discord_name", "reason", "mode", "selected_map"]) {
-    const value = form.get(name);
-    values[name] = typeof value === "string" ? value.slice(0, name === "reason" ? 2000 : name === "facebook_url" ? 500 : name === "previous_clan" ? 150 : 100) : "";
-  }
-  if (!["tdm", "zm_hmx", "escape"].includes(values.mode)) values.mode = "";
-  return { ...result, values, consent: form.get("consent") === "on" };
+  return { ...result, ...preserveApplicationForm(form) };
 }
 
 async function processApplication(form: FormData): Promise<ApplicationState> {
@@ -28,9 +22,8 @@ async function processApplication(form: FormData): Promise<ApplicationState> {
   const revision = typeof rawRevision === "string" && /^\d+$/.test(rawRevision) ? Number(rawRevision) : NaN;
   if (!key.success || !Number.isInteger(revision) || revision < 0 || revision > 2147483647) return { message: "Refresh the form before submitting." };
   // Explicitly extract only applicant-owned fields. Status, outcome and actor are never accepted.
-  const raw = Object.fromEntries(["ign", "first_name", "last_name", "rank", "previous_clan", "facebook_url", "discord_name", "reason", "mode", "selected_map"].map(name => [name, form.get(name) ?? ""]));
+  const payload = readApplicationForm(form);
   const config = await getPublicConfig();
-  const payload = { ...raw, consent: form.get("consent") === "on" };
   // Old-version retries may recover an already saved receipt after settings are withdrawn.
   // The database validates the current mode/maps/revision before every new insert.
   const parsed = config.state === "published" && config.revision === revision
