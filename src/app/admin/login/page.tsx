@@ -9,5 +9,5 @@ export const metadata: Metadata = { title: "Officer Sign-in | Deicidee" };
 export default async function Login() {
   const configured = isSupabaseConfigured();
   if (configured && await getOfficer()) redirect("/admin");
-  return <><PageIntro eyebrow="Restricted access" title="Officer sign-in.">For assigned Deicidee admins and staff.</PageIntro>{!configured && <p className="notice">Supabase has not been connected. Sign-in is unavailable until setup is complete.</p>}<div className="section"><LoginForm configured={configured} /></div><p><Link className="text-link" href="/admin">Dashboard setup ↗</Link></p></>;
+  return <section className="login-layout"><PageIntro eyebrow="Restricted access" title="Officer sign-in.">For assigned Deicidee admins and staff.</PageIntro>{!configured && <p className="notice">Supabase has not been connected. Sign-in is unavailable until setup is complete.</p>}<LoginForm configured={configured} /><p className="login-help"><Link className="text-link" href="/admin">Dashboard setup ↗</Link></p></section>;
 }

@@ -40,3 +40,86 @@ p { color:#bfc0c9; font-size:15px; line-height:1.8; } .lede { font-size:17px; co
 .dashboard-tabs { margin-top:24px; } .dashboard-counts { margin-bottom:24px; } .dashboard-filters { display:flex; gap:18px; align-items:end; flex-wrap:wrap; } .dashboard-filters .field { flex:1; min-width:160px; } .application-list { display:grid; gap:16px; } .application-row { display:grid; grid-template-columns:1fr 1fr; gap:24px; color:inherit; } .application-row:hover { border-color:#ab3a48; } .application-row .tag { margin-top:0; } .account-section>summary { font-weight:800; font-size:22px; } .officer-card h3 { overflow-wrap:anywhere; } .delete-account { margin-top:24px; border-top:1px solid var(--line); padding-top:20px; } .delete-account summary { color:#ff9198; } .delete-account .check-field input { width:18px; height:18px; accent-color:var(--red); } .history-item { border-top:1px solid var(--line); margin-top:20px; padding-top:12px; } .snapshot-copy { white-space:pre-wrap; overflow-wrap:anywhere; font:13px/1.7 monospace; color:#bfc0c9; } @media(max-width:700px) { .application-row { grid-template-columns:1fr; } .dashboard-tabs a { padding:16px 20px; } }
 
 .staff-create { margin:24px 0; } .staff-create fieldset { border:0; padding:0; margin:24px 0; } .application-reference { overflow-wrap:anywhere; }
+
+.login-layout { width:100%; max-width:520px; margin:0 auto; padding-top:clamp(40px,7vh,80px); }
+.login-layout .page-intro { padding:0 0 28px; text-align:center; }
+.login-layout .page-intro h1 { font-size:clamp(30px,4vw,44px); }
+.login-layout .page-intro .eyebrow { margin-bottom:16px; }
+.login-layout .page-intro .lede { margin-top:16px; font-size:15px; }
+.login-layout .notice { margin:0 0 24px; }
+.login-layout .login-panel { width:100%; max-width:none; border-top:2px solid var(--red); }
+.login-panel fieldset { min-width:0; border:0; padding:0; margin:0; }
+.login-panel .button { width:100%; }
+.login-panel > .muted { margin-top:24px; text-align:center; line-height:1.7; }
+.login-help { margin-top:20px; text-align:center; }
+
+/* Officer workspace */
+.header-account { display:flex; align-items:center; gap:14px; min-width:0; }
+.officer-identity { display:flex; align-items:center; gap:9px; color:#f5f5f6; min-width:0; }
+.officer-identity strong { display:block; font-size:12px; max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.officer-identity small { display:block; color:var(--muted); font-size:11px; margin-top:4px; }
+.signed-in-dot { width:7px; height:7px; border-radius:50%; background:#7ed8ad; flex-shrink:0; }
+.header-inner:has(.header-account) { gap:20px; }
+.header-inner:has(.header-account) > nav { gap:18px; }
+.dashboard-heading { display:flex; align-items:center; justify-content:space-between; gap:24px; padding:38px 0 24px; }
+.dashboard-heading .page-intro { padding:0; }
+.dashboard-heading .eyebrow { margin-bottom:12px; }
+.dashboard-heading h1 { font-size:clamp(28px,3vw,38px); text-transform:none; }
+.dashboard-heading .lede { font-size:14px; margin-top:12px; }
+.dashboard-heading > .button { flex-shrink:0; }
+.officer-dashboard .dashboard-tabs { margin-top:0; }
+.officer-dashboard h2 { font-size:24px; text-transform:none; letter-spacing:-.025em; }
+.intake-summary { display:flex; align-items:center; justify-content:space-between; gap:28px; border-left:3px solid var(--red); }
+.intake-summary .eyebrow { margin-bottom:10px; }
+.intake-summary p { font-size:13px; margin-top:10px; }
+.intake-summary > form { flex-shrink:0; max-width:300px; }
+.intake-summary summary { font-size:12px; color:var(--muted); }
+.settings-editor { margin-top:32px; }
+.settings-intro { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; }
+.settings-intro p { margin:8px 0; font-size:14px; }
+.settings-badge { display:inline-block; border:1px solid #41434d; color:#c4c6d1; font-size:11px; padding:6px 9px; white-space:nowrap; }
+.settings-group-title { font-size:12px; letter-spacing:.1em; margin:30px 0 14px; color:var(--muted); }
+.settings-section { border:1px solid var(--line); background:var(--panel); margin:12px 0; }
+.settings-section > summary { display:flex; gap:14px; align-items:center; padding:20px 24px; list-style:none; }
+.settings-section > summary::-webkit-details-marker { display:none; }
+.settings-section > summary::after { content:'+'; color:#ff6872; margin-left:auto; font-size:22px; }
+.settings-section[open] > summary::after { content:'−'; }
+.settings-section summary strong { font-size:16px; }
+.settings-section summary small,.approval-field small { display:block; font-size:12px; line-height:1.6; color:var(--muted); margin-top:5px; }
+.settings-section .settings-badge { margin-left:auto; }
+.settings-section .settings-badge + * { margin-left:0; }
+.admin-form .settings-section fieldset { margin:0; padding:0 24px 24px; border:0; min-width:0; }
+.approval-field { padding:14px; background:#191a20; font-size:13px; margin:0 0 24px; }
+.approval-field input { width:18px; height:18px; accent-color:var(--red); flex-shrink:0; }
+.settings-editor .rules-field { grid-column:1 / -1; }
+.settings-editor .rules-field textarea { min-height:200px; }
+.settings-save { border:1px solid var(--line); padding:20px 24px; margin-top:24px; background:#17181d; }
+.settings-save p { font-size:13px; margin:0; }
+.settings-save .actions { margin-top:16px; }
+.settings-withdraw { margin-top:22px; padding:0 4px; }
+.settings-withdraw summary { font-size:13px; color:var(--muted); }
+.officer-dashboard .account-section { margin-top:32px; }
+.officer-dashboard .account-section > summary { font-size:17px; }
+.publication-requests { margin:28px 0; }
+.publication-requests h2 .settings-badge { vertical-align:middle; margin-left:10px; }
+.request-content { padding:0 24px 24px; }
+.publication-change { border-top:1px solid var(--line); padding:18px 0; }
+.publication-change h3 { font-size:13px; margin-bottom:14px; }
+.publication-change small { color:var(--muted); font-size:11px; }
+.publication-change p { font-size:13px; padding:12px; border:1px solid var(--line); background:#0b0c0f; }
+.publication-review { border-top:1px solid var(--line); padding-top:22px; }
+.draft-refresh { margin:18px 0; }
+@media(max-width:700px) {
+ .header-account { gap:8px; }
+ .officer-identity strong { max-width:100px; }
+ .header-inner:has(.header-account) > nav { justify-content:flex-start; }
+ .dashboard-heading { align-items:flex-start; flex-direction:column; gap:16px; padding-top:28px; }
+ .intake-summary { flex-direction:column; align-items:stretch; gap:18px; }
+ .intake-summary > form { max-width:none; }
+ .settings-intro { flex-direction:column; gap:8px; }
+ .settings-section > summary { flex-wrap:wrap; padding:18px 16px; }
+ .settings-section .settings-badge { margin-left:0; }
+ .admin-form .settings-section fieldset { padding:0 16px 20px; }
+ .settings-save { padding:18px 16px; }
+ .settings-save .actions { display:grid; grid-template-columns:1fr; }
+}
